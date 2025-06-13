@@ -274,9 +274,9 @@ def simulate(
                 len(results.x) == num_splits + num_splits * s
             ), "Results should have length equal to number of splits + number of splits * services."
             res = np.array(results.x[num_splits:]).reshape(num_splits, s)
-            deltas = res - w[curr_v : curr_v + num_splits, :]
-            w[curr_v : curr_v + num_splits, :] = res
-            all_split_allocs[curr_v] = results.x[:num_splits]
+            deltas = res - w[curr_v * num_splits : curr_v * num_splits + num_splits, :]
+            w[curr_v * num_splits : curr_v * num_splits + num_splits, :] = res
+            all_split_allocs[curr_v] = np.array(results.x[:num_splits])
 
         if np.all(np.abs(deltas) < epsilon):
             equilibrium_count += 1
@@ -349,10 +349,3 @@ if __name__ == "__main__":
     # print(w_3)
     # print(reward_calc(v, s, sigma, r, deg, w_3))
     # visualize(v, s, sigma, r, deg, w_2)
-
-    # [array([5.67617361, 4.30650524, 5.67206526, 5.6652727 , 5.67019663, 4.29012822, 4.29811622, 4.30307471]),
-    # array([4.29012822, 4.29167424, 4.30307471]),
-    # array([5.36159713, 4.63826211, 5.36158598, 5.36135594, 5.36151405, 4.63808794, 4.63819042, 4.6382621 ]),
-    # array([5.85325838, 5.85080777, 5.84936051]),
-    # array([5.36158598, 5.36135594, 5.36151405]),
-    # array([4.63808794, 4.63819042, 4.63220156])]
