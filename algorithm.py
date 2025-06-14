@@ -168,3 +168,40 @@ def calc_split_strategy(d, mask, rewards):
     allocate = np.clip(allocate, 0.0, 1.0)
 
     return allocate
+
+
+def calc_capital_efficiency(rewards, allocation):
+    """
+    Calculates the capital efficiency as the sum of the element-wise
+    product of rewards and their corresponding allocations.
+
+    Args:
+        rewards (list or numpy.ndarray): A vector of reward values.
+        allocation (list or numpy.ndarray): A vector of allocation values,
+                                            corresponding to the rewards.
+
+    Returns:
+        float: The calculated capital efficiency. Returns 0.0 if inputs are invalid
+               or empty.
+    """
+    # --- Input Validation ---
+    if not isinstance(rewards, (list, np.ndarray)) or \
+       not isinstance(allocation, (list, np.ndarray)):
+        print("Error: Both 'rewards' and 'allocation' must be lists or NumPy arrays.")
+        return 0.0
+
+    rewards_array = np.array(rewards, dtype=float)
+    allocation_array = np.array(allocation, dtype=float)
+
+    if rewards_array.size == 0 or allocation_array.size == 0:
+        print("Warning: One or both input arrays are empty. Capital efficiency is 0.")
+        return 0.0
+
+    if rewards_array.shape != allocation_array.shape:
+        print("Error: 'rewards' and 'allocation' arrays must have the same shape.")
+        return 0.0
+
+    # Calculate capital efficiency: sum of (reward * allocation) for corresponding elements
+    capital_efficiency = np.sum(rewards_array * allocation_array)
+
+    return capital_efficiency
