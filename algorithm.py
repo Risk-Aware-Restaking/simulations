@@ -98,9 +98,11 @@ def calc_split_strategy(d, mask, rewards):
     # Create a mutable list of active indices from the input mask.
     # This list will be modified as indices get 'capped' at 1.
     active_mask = list(mask)
+    print(f"Initial active indices: {active_mask}") 
 
     # Initialize the remaining 'd' to be distributed.
     remaining_d = float(d)
+    print(f"Initial remaining d: {remaining_d}")
 
     # --- Iterative Allocation Loop ---
     # The loop continues as long as there's 'd' left to distribute,
@@ -132,6 +134,7 @@ def calc_split_strategy(d, mask, rewards):
             # Handle potential division by zero if active_rewards_sum is 0, though
             # checked above.
             share = (rewards_array[idx] / active_rewards_sum) * remaining_d
+            print(f"Share for index {idx} (reward {rewards_array[idx]}): {share:.4f}")
             current_iteration_temp_allocations[idx] = share
 
             # If this share is 1.0 or greater, it needs to be capped.
@@ -283,11 +286,11 @@ def calculate_split_algorithm(degrees, rewards):
     for i, mask_indices in enumerate(strategy_masks):
         # Calculate the split amount (d_val) for this strategy based on proportionality
         # d_val = K_ratio * base_efficiency_for_this_mask
-        d_val = constant_K_ratio * base_efficiencies[i]
-        final_splits.append(d_val)
+        split_Value = constant_K_ratio * base_efficiencies[i]
+        final_splits.append(split_Value)
         
         # Calculate the actual allocation using calc_split_strategy with this d_val
-        alloc = calc_split_strategy(d_val, mask_indices, rewards_array)
+        alloc = calc_split_strategy(unique_degrees[i], mask_indices, rewards_array)
         final_allocations.append(alloc)
         
         # Calculate the actual capital efficiency using calc_capital_efficiency
@@ -336,14 +339,20 @@ def calculate_equilibrium_algorithm(degrees, rewards, stakes):
 
     for current_stake in stakes:
         # Call the main split calculation algorithm for each stake
-        final_splits, final_allocations, _, _ = calculate_split_algorithm(
+        splits_for_unit_stake, allocations_for_unit_stake, _, _ = calculate_split_algorithm(
             degrees, rewards_array
         )
         
-        # Store the results for this stake
-        all_final_splits_per_stake.append(final_splits)
-        # Convert the list of 1D allocation arrays into a single 2D NumPy array
-        all_final_allocations_per_stake.append(np.array(final_allocations))
+        # Scale the splits by the current_stake
+        scaled_splits = [s * current_stake for s in splits_for_unit_stake]
+        
+        # Scale the allocations by the current_stake
+        # `allocations_for_unit_stake` is a list of 1D numpy arrays.
+        # np.array() converts it to a 2D numpy array, then we multiply by current_stake.
+        scaled_allocations = np.array(allocations_for_unit_stake) * current_stake
+
+        all_final_splits_per_stake.append(scaled_splits)
+        all_final_allocations_per_stake.append(scaled_allocations)
 
     return all_final_splits_per_stake, all_final_allocations_per_stake
 
