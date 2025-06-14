@@ -98,50 +98,46 @@ def visualize(
     net = Network()
     net.add_nodes(
         ["v" + str(i) for i in range(v)],
-        label=["v" + str(i) + " stake: " + str(sigma[i]) for i in range(v)],
+        label=[f"v{i}\nstake: {sigma[i]}" for i in range(v)],
         x=[0] * v,
-        y=[100 * i for i in range(v)],
+        y=[100 * i * num_splits for i in range(v)],
     )
 
     if split:
         net.add_nodes(
             [f"v{i}_split{j}" for i in range(v) for j in range(num_splits)],
             label=[
-                f"v{i}_split{j} stake: {split_allocation[i][j]:.2f}"
-                for j in range(num_splits)
+                f"v{i}_split{j}\nstake: {split_allocation[i][j]:.2f}"
                 for i in range(v)
+                for j in range(num_splits)
             ],
             x=[200] * (v * num_splits),
             y=[100 * i for i in range(v * num_splits)],
         )
 
     net.add_nodes(
-        ["s" + str(i) for i in range(s)],
-        label=[
-            "s" + str(i) + " r: " + str(r[i]) + " deg: " + str(deg[i]) for i in range(s)
-        ],
+        [f"s{i}" for i in range(s)],
+        label=[f"s{i}\nreward: {r[i]}\ndeg: {deg[i]}" for i in range(s)],
         x=[400] * s,
-        y=[100 * i for i in range(s)],
+        y=[150 * i for i in range(s)],
     )
 
     if not split:
         for i in range(v):
             for j in range(s):
                 if w[i][j] > 0:
-                    net.add_edge(
-                        "v" + str(i), "s" + str(j), weight=5, title=f"{w[i][j]:.2f}"
-                    )
+                    net.add_edge(f"v{i}", f"s{j}", weight=5, label=f"{w[i][j]:.2f}")
     else:
         for i in range(v):
             for j in range(num_splits):
                 net.add_edge(f"v{i}", f"v{i}_split{j}", weight=5)
                 for k in range(s):
-                    if w[i * num_splits + j][k] > 0:
+                    if not np.isclose(w[i * num_splits + j][k], 0, atol=0.01):
                         net.add_edge(
                             f"v{i}_split{j}",
                             f"s{k}",
                             weight=5,
-                            title=f"{w[i * num_splits + j][k]:.2f}",
+                            label=f"{w[i * num_splits + j][k]:.2f}",
                         )
     net.toggle_physics(False)
     net.show(filename, notebook=False)
@@ -375,10 +371,10 @@ if __name__ == "__main__":
     pi = np.array([2, 1, 3])
 
     # reward per service
-    r = np.array([3, 1, 2])
+    r = np.array([2, 1, 3])
 
     # degree per service
-    deg = np.array([1, 1.5, 1.5])
+    deg = np.array([2, 2, 3])
 
     # whether we use splitting or not
     split = True
@@ -436,6 +432,9 @@ if __name__ == "__main__":
     # print(w_2)
     # print(reward_calc(v, s, sigma, r, deg, w_2))
     # print(stake_ratio(v, s, r, w_2))
+
+    visualize(v, s, sigma, r, deg, w, split=split, split_allocation=split_alloc)
+    exit(0)
 
     print("-" * 40)
     print("Checking equilibrium by setting first validator to initial allocation...")
