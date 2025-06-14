@@ -205,3 +205,95 @@ def calc_capital_efficiency(rewards, allocation):
     capital_efficiency = np.sum(rewards_array * allocation_array)
 
     return capital_efficiency
+
+
+def calculate_split_algorithm(degrees, rewards):
+    """
+    Calculates an allocation strategy for various splits (based on unique degrees)
+    such that the total stake is distributed, and the ratio of (split amount / base_capital_efficiency)
+    is identical for all splits. The total stake is assumed to be 1.0.
+
+    The "base_capital_efficiency" for each split's mask is defined as the sum of
+    the original reward values of items included in that mask. This interpretation
+    allows for direct calculation without a bisection search.
+
+    Args:
+        degrees (list or numpy.ndarray): A vector of floats or integers representing degrees.
+        rewards (list or numpy.ndarray): The full vector of reward values.
+
+    Returns:
+        tuple: A tuple containing:
+            - final_splits (list): A list of 'd' values (split amounts) for each unique degree strategy.
+            - final_allocations (list of numpy.ndarray): A list of allocation vectors, one for each strategy.
+            - final_efficiencies (list): A list of actual capital efficiencies for each strategy,
+                                         calculated using `calc_capital_efficiency` after allocation.
+            - constant_K_ratio (float): The calculated constant K = split / base_capital_efficiency.
+                                        Note: Due to the capping in calc_split_strategy, the
+                                        (split / actual_efficiency) may not be strictly identical
+                                        across all splits, but (split / base_efficiency) will be.
+    """
+    # --- Input Validation ---
+    if not isinstance(degrees, (list, np.ndarray)) or not isinstance(rewards, (list, np.ndarray)):
+        print("Error: 'degrees' and 'rewards' must be lists or NumPy arrays.")
+        return [], [], [], 0.0
+    
+    # total_stake is hardcoded to 1.0 as per request.
+    total_stake = 1.0
+    
+    rewards_array = np.array(rewards, dtype=float)
+
+    # Step 1: Get unique degrees and their corresponding strategy masks
+    unique_degrees, strategy_masks = get_split_choice(degrees)
+
+    if not unique_degrees:
+        print("No unique degrees found. Cannot calculate splits.")
+        return [], [], [], 0.0
+
+    # Step 2: Calculate a 'base capital efficiency' for each split.
+    # This is defined as the sum of original rewards for items included in that split's mask.
+    base_efficiencies = []
+    for mask_indices in strategy_masks:
+        # Sum of rewards for items included in this specific mask
+        mask_rewards_sum = np.sum(rewards_array[mask_indices]) if mask_indices else 0.0
+        base_efficiencies.append(mask_rewards_sum)
+
+    # Calculate the total sum of these base efficiencies across all strategies
+    total_base_efficiency_sum = sum(base_efficiencies)
+
+    # Handle case where all base efficiencies sum to zero.
+    if total_base_efficiency_sum <= 1e-9: # Effectively zero sum of base efficiencies
+        # If total_stake is positive (which it is, hardcoded to 1.0), and base efficiencies are zero,
+        # it's impossible to proportionally distribute.
+        print("Warning: All calculated base efficiencies are zero. Cannot proportionally distribute a positive total_stake.")
+        num_strategies = len(unique_degrees)
+        final_splits = [0.0] * num_strategies
+        final_allocations = [np.zeros_like(rewards_array) for _ in range(num_strategies)]
+        final_efficiencies = [0.0] * num_strategies
+        return final_splits, final_allocations, final_efficiencies, 0.0
+
+    # Step 3: Calculate the constant ratio (K) for (split / base_capital_efficiency)
+    # K = (total stake) / (sum of all base efficiencies)
+    constant_K_ratio = total_stake / total_base_efficiency_sum
+
+    final_splits = []
+    final_allocations = []
+    final_efficiencies = []
+
+    # Step 4: Calculate final splits (d values) and their resulting allocations/efficiencies
+    for i, mask_indices in enumerate(strategy_masks):
+        # Calculate the split amount (d_val) for this strategy based on proportionality
+        # d_val = K_ratio * base_efficiency_for_this_mask
+        d_val = constant_K_ratio * base_efficiencies[i]
+        final_splits.append(d_val)
+        
+        # Calculate the actual allocation using calc_split_strategy with this d_val
+        alloc = calc_split_strategy(d_val, mask_indices, rewards_array)
+        final_allocations.append(alloc)
+        
+        # Calculate the actual capital efficiency using calc_capital_efficiency
+        eff = calc_capital_efficiency(rewards_array, alloc)
+        final_efficiencies.append(eff)
+
+    return final_splits, final_allocations, final_efficiencies, constant_K_ratio
+
+def calculate_equilibrium_algorithm(degrees, rewards):
