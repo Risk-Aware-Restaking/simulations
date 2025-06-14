@@ -296,4 +296,86 @@ def calculate_split_algorithm(degrees, rewards):
 
     return final_splits, final_allocations, final_efficiencies, constant_K_ratio
 
-def calculate_equilibrium_algorithm(degrees, rewards):
+
+def calculate_equilibrium_algorithm(degrees, rewards, stakes):
+    """
+    For each stake in the provided stakes vector, calculates the optimal splits
+    and their corresponding allocations (scaled by the split amount) according
+    to the defined proportionality rule.
+
+    Args:
+        degrees (list or numpy.ndarray): A vector of floats or integers representing degrees.
+        rewards (list or numpy.ndarray): The full vector of reward values.
+        stakes (list or numpy.ndarray): A vector of total stake amounts for which
+                                        to calculate the splits and allocations.
+
+    Returns:
+        tuple: A tuple containing:
+            - all_final_splits_per_stake (list of lists): A list where each inner list
+                                                       contains the 'd' values (splits)
+                                                       for a given total_stake from `stakes`.
+            - all_final_allocations_per_stake (list of 2D numpy.ndarray):
+                                                       A list where each inner NumPy array is
+                                                       a 2D array of allocation vectors for all splits
+                                                       for a given total_stake from `stakes`.
+                                                       Each row of the 2D array corresponds to
+                                                       an allocation vector for a specific split.
+    """
+    # --- Input Validation ---
+    if not isinstance(stakes, (list, np.ndarray)):
+        print("Error: 'stakes' must be a list or a NumPy array.")
+        return [], []
+    if not isinstance(degrees, (list, np.ndarray)) or not isinstance(rewards, (list, np.ndarray)):
+        print("Error: 'degrees' and 'rewards' must be lists or NumPy arrays.")
+        return [], []
+    
+    rewards_array = np.array(rewards, dtype=float)
+
+    all_final_splits_per_stake = []
+    all_final_allocations_per_stake = []
+
+    for current_stake in stakes:
+        # Call the main split calculation algorithm for each stake
+        final_splits, final_allocations, _, _ = calculate_split_algorithm(
+            degrees, rewards_array
+        )
+        
+        # Store the results for this stake
+        all_final_splits_per_stake.append(final_splits)
+        # Convert the list of 1D allocation arrays into a single 2D NumPy array
+        all_final_allocations_per_stake.append(np.array(final_allocations))
+
+    return all_final_splits_per_stake, all_final_allocations_per_stake
+
+# --- Example Usage (for testing the new function) ---
+if __name__ == "__main__":
+    print("--- Testing calculate_equilibrium_algorithm ---")
+
+    degrees_example = [1.5, 2, 1.5, 2, 2, 1.5]
+    rewards_example = [5.0, 15.0, 7.0, 15.0, 12.0, 10.0]
+    stakes_example = [1.0, 0.5, 2.0] # Test with different total stake values
+
+    all_splits, all_allocations = calculate_equilibrium_algorithm(
+        degrees_example, rewards_example, stakes_example
+    )
+
+    print(f"Original Degrees: {degrees_example}")
+    print(f"Original Rewards: {rewards_example}")
+    print(f"Stakes to test: {stakes_example}\n")
+
+    for i, stake_val in enumerate(stakes_example):
+        print(f"--- Results for Total Stake = {stake_val:.2f} ---")
+        
+        current_final_splits = all_splits[i]
+        current_final_allocations = all_allocations[i]
+
+        print(f"  Splits (d values): {current_final_splits}")
+        print(f"  Sum of Splits: {np.sum(current_final_splits):.4f}")
+
+        print("  Allocations (within each split):")
+        # Now, current_final_allocations is a 2D NumPy array.
+        # Iterating over it directly yields its rows (which are the 1D allocation vectors).
+        for j, alloc_vec in enumerate(current_final_allocations):
+            unique_degrees, _ = get_split_choice(degrees_example) # Re-get unique degrees for printing
+            print(f"    Split {j+1} (Degree Threshold: {unique_degrees[j]}): {alloc_vec.round(4).tolist()}")
+        print("-" * 40)
