@@ -345,11 +345,15 @@ def calculate_equilibrium_algorithm(degrees, rewards, stakes):
         
         # Scale the splits by the current_stake
         scaled_splits = [s * current_stake for s in splits_for_unit_stake]
-        
+        scaled_allocations = []
+
+        for j, alloc_vec in enumerate(allocations_for_unit_stake):
+            # Each alloc_vec needs to be multiplied by its corresponding scaled_split
+            scaled_allocations.append(alloc_vec * scaled_splits[j])
         # Scale the allocations by the current_stake
         # `allocations_for_unit_stake` is a list of 1D numpy arrays.
         # np.array() converts it to a 2D numpy array, then we multiply by current_stake.
-        scaled_allocations = np.array(allocations_for_unit_stake) * current_stake
+        # scaled_allocations = np.array(allocations_for_unit_stake) * current_stake
 
         all_final_splits_per_stake.append(scaled_splits)
         all_final_allocations_per_stake.append(scaled_allocations)
