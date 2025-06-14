@@ -2,6 +2,8 @@ from scipy import optimize
 import numpy as np
 from pyvis.network import Network
 
+np.set_printoptions(suppress=True, precision=4)
+
 
 def reward_calc(
     v: int,
@@ -77,6 +79,10 @@ def original_w(v: int, s: int, sigma: np.ndarray, r: np.ndarray, d: int) -> np.n
     return w
 
 
+def get_validator_reward(reward, v, num_splits):
+    return np.sum(reward.reshape(v, num_splits), axis=1)
+
+
 def visualize(
     v: int,
     s: int,
@@ -84,8 +90,11 @@ def visualize(
     r: np.ndarray,
     deg: np.ndarray,
     w: np.ndarray,
+    split: bool = False,
+    split_allocation: np.ndarray = np.zeros((0, 0)),
     filename: str = "mygraph.html",
 ):
+    num_splits = len(np.unique(deg))
     net = Network()
     net.add_nodes(
         ["v" + str(i) for i in range(v)],
@@ -93,18 +102,47 @@ def visualize(
         x=[0] * v,
         y=[100 * i for i in range(v)],
     )
+
+    if split:
+        net.add_nodes(
+            [f"v{i}_split{j}" for i in range(v) for j in range(num_splits)],
+            label=[
+                f"v{i}_split{j} stake: {split_allocation[i][j]:.2f}"
+                for j in range(num_splits)
+                for i in range(v)
+            ],
+            x=[200] * (v * num_splits),
+            y=[100 * i for i in range(v * num_splits)],
+        )
+
     net.add_nodes(
         ["s" + str(i) for i in range(s)],
         label=[
             "s" + str(i) + " r: " + str(r[i]) + " deg: " + str(deg[i]) for i in range(s)
         ],
-        x=[200] * s,
+        x=[400] * s,
         y=[100 * i for i in range(s)],
     )
-    for i in range(v):
-        for j in range(s):
-            if w[i][j] > 0:
-                net.add_edge("v" + str(i), "s" + str(j), weight=5, title=str(w[i][j]))
+
+    if not split:
+        for i in range(v):
+            for j in range(s):
+                if w[i][j] > 0:
+                    net.add_edge(
+                        "v" + str(i), "s" + str(j), weight=5, title=f"{w[i][j]:.2f}"
+                    )
+    else:
+        for i in range(v):
+            for j in range(num_splits):
+                net.add_edge(f"v{i}", f"v{i}_split{j}", weight=5)
+                for k in range(s):
+                    if w[i * num_splits + j][k] > 0:
+                        net.add_edge(
+                            f"v{i}_split{j}",
+                            f"s{k}",
+                            weight=5,
+                            title=f"{w[i * num_splits + j][k]:.2f}",
+                        )
     net.toggle_physics(False)
     net.show(filename, notebook=False)
 
@@ -131,6 +169,7 @@ def simulate(
     n: int = 1000,
     epsilon: float = 1e-3,
     init: np.ndarray | None = None,
+    split_init: np.ndarray | None = None,
     split: bool = False,
 ) -> tuple[np.ndarray, np.ndarray]:
     assert len(sigma) == v, "Stake must have length equal to number of validators."
@@ -161,7 +200,7 @@ def simulate(
             ]
         )
     else:
-        w = init
+        w = np.copy(init)
 
     assert w.shape == (
         v * num_splits,
@@ -169,10 +208,12 @@ def simulate(
     ), "Weights must be a (v*num_splits) x s matrix."
 
     equilibrium_count = 0
-
-    all_split_allocs = np.array(
-        [[sigma[i // num_splits] / num_splits] * num_splits for i in range(v)]
-    )
+    if split_init is None:
+        all_split_allocs = np.array(
+            [[sigma[i // num_splits] / num_splits] * num_splits for i in range(v)]
+        )
+    else:
+        all_split_allocs = np.copy(split_init)
     assert all_split_allocs.shape == (v, num_splits)
 
     for i in range(n):
@@ -200,7 +241,7 @@ def simulate(
                 temp_split_allocs[curr_v] = split_allocation
 
                 validator_splits = np.array(x[num_splits:]).reshape(num_splits, s)
-                if not np.isclose(np.sum(split_allocation), curr_stake, rtol=1e-1):
+                if np.sum(split_allocation) > curr_stake:
                     return 1e9
                 validator_row_sums = np.sum(validator_splits, axis=1)
                 assert len(validator_row_sums) == num_splits
@@ -258,19 +299,23 @@ def simulate(
             bounds = [(0, curr_stake)] * (num_splits + num_splits * s)
         else:
             bounds = [(0, curr_stake)] * s
-
-        results = optimize.dual_annealing(
+        x0 = np.concatenate(
+            (
+                all_split_allocs[curr_v],
+                w[curr_v * num_splits : curr_v * num_splits + num_splits, :].flatten(),
+            )
+        )
+        init_util = utility(x0)
+        results = optimize.differential_evolution(
             utility,
             bounds,
-            x0=np.concatenate(
-                (
-                    all_split_allocs[curr_v],
-                    w[
-                        curr_v * num_splits : curr_v * num_splits + num_splits, :
-                    ].flatten(),
-                )
-            ),
+            x0=x0,
         )
+
+        # utility returns negative
+        if results.fun > init_util:
+            print("Initial state has better utility", results.fun, init_util)
+            continue
 
         if not split:
             res = np.array(results.x)
@@ -287,8 +332,11 @@ def simulate(
             res = np.array(results.x[num_splits:]).reshape(num_splits, s)
             deltas = res - w[curr_v * num_splits : curr_v * num_splits + num_splits, :]
             w[curr_v * num_splits : curr_v * num_splits + num_splits, :] = res
-
-            if not np.isclose(np.sum(results.x[:num_splits]), curr_stake, rtol=1e-1):
+            # print(w)
+            # print(results)
+            # print("curr stake", curr_stake)
+            # print(np.sum(results.x[:num_splits]))
+            if not np.isclose(np.sum(results.x[:num_splits]), curr_stake, atol=1e-1):
                 print(w)
                 print(results)
                 raise AssertionError(
@@ -318,7 +366,7 @@ if __name__ == "__main__":
     s = 3
 
     # stake per validator
-    sigma = np.array([11, 11])
+    sigma = np.array([1, 1])
 
     # threshold per service
     theta = np.array([0.25, 0.5, 0.6])
@@ -327,32 +375,59 @@ if __name__ == "__main__":
     pi = np.array([2, 1, 3])
 
     # reward per service
-    r = np.array([3, 1, 3])
+    r = np.array([3, 1, 2])
 
     # degree per service
     deg = np.array([1, 1.5, 1.5])
 
     # whether we use splitting or not
     split = True
+    split_init = np.array([[2 / 3, 1 / 3], [2 / 3, 1 / 3]])
+    w_init = np.array(
+        [
+            [1 / 3, 1 / 9, 2 / 9],
+            [0, 1 / 6, 1 / 3],
+            [1 / 3, 1 / 9, 2 / 9],
+            [0, 1 / 6, 1 / 3],
+        ]
+    )
+    # visualize(v, s, sigma, r, deg, w_init, True, split_init)
+    # exit(0)
 
     # maximize reward while minimizing stake
-    w, split_alloc = simulate(v, s, sigma, theta, pi, r, deg, n=200, split=split)
+    w, split_alloc = simulate(
+        v,
+        s,
+        sigma,
+        theta,
+        pi,
+        r,
+        deg,
+        n=200,
+        init=w_init,
+        split_init=split_init,
+        split=split,
+    )
     print("split allocs", split_alloc)
+    print("split alloc sums:", np.sum(split_alloc, axis=1))
     print(w)
+    reward = reward_calc(
+        v,
+        s,
+        sigma,
+        r,
+        deg,
+        w,
+        split=split,
+        split_allocation=split_alloc,
+    )
     print(
         "reward",
-        reward_calc(
-            v,
-            s,
-            sigma,
-            r,
-            deg,
-            w,
-            split=split,
-            split_allocation=split_alloc,
-        ),
+        reward,
     )
+    print("reward per validator", get_validator_reward(reward, v, len(np.unique(deg))))
     print("stake ratio", stake_ratio(v, s, r, w))
+
     # with open("w.txt", "w") as f:
     #     print(w, file=f)
 
@@ -362,8 +437,31 @@ if __name__ == "__main__":
     # print(reward_calc(v, s, sigma, r, deg, w_2))
     # print(stake_ratio(v, s, r, w_2))
 
-    # w_3 = w
-    # w_3[0] = w_2[0]
-    # print(w_3)
-    # print(reward_calc(v, s, sigma, r, deg, w_3))
+    print("-" * 40)
+    print("Checking equilibrium by setting first validator to initial allocation...")
+
+    w_3 = w
+    split_alloc_3 = split_alloc
+    split_alloc_3[0, :] = split_init[0, :]
+    print("split allocs", split_alloc_3)
+    print("split alloc sums:", np.sum(split_alloc_3, axis=1))
+
+    w_3[0:2, :] = w_init[0:2, :]
+    print(w_3)
+    reward = reward_calc(
+        v,
+        s,
+        sigma,
+        r,
+        deg,
+        w_3,
+        split=split,
+        split_allocation=split_alloc_3,
+    )
+    print(
+        "reward",
+        reward,
+    )
+    print("reward per validator", get_validator_reward(reward, v, len(np.unique(deg))))
+    print("stake ratio", stake_ratio(v, s, r, w))
     # visualize(v, s, sigma, r, deg, w_2)
