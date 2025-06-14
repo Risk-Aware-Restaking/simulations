@@ -4,6 +4,7 @@
 - numpy
 - pyvis
 - flask
+- flask_caching
 
 # How to Run Frontend Interface
 ```
