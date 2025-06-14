@@ -1,6 +1,7 @@
 from scipy import optimize
 import numpy as np
 from pyvis.network import Network
+import time
 
 np.set_printoptions(suppress=True, precision=4)
 
@@ -101,7 +102,7 @@ def visualize(
         label=[f"v{i}\nstake: {sigma[i]}" for i in range(v)],
         x=[0] * v,
         y=[100 * i * num_splits for i in range(v)],
-        shape=["circle"] * v
+        shape=["circle"] * v,
     )
 
     if split:
@@ -114,7 +115,7 @@ def visualize(
             ],
             x=[200] * (v * num_splits),
             y=[100 * i for i in range(v * num_splits)],
-            shape=["circle"] * (v * num_splits)
+            shape=["circle"] * (v * num_splits),
         )
 
     net.add_nodes(
@@ -122,7 +123,7 @@ def visualize(
         label=[f"s{i}\nreward: {r[i]}\ndeg: {deg[i]}" for i in range(s)],
         x=[400] * s,
         y=[150 * i for i in range(s)],
-        shape=["circle"] * s
+        shape=["circle"] * s,
     )
 
     if not split:
@@ -142,8 +143,9 @@ def visualize(
                             weight=5,
                             label=f"{w[i * num_splits + j][k]:.2f}",
                         )
-    
-    net.set_options("""
+
+    net.set_options(
+        """
         var options = {
         "nodes": {
             
@@ -231,6 +233,8 @@ def simulate(
     else:
         all_split_allocs = np.copy(split_init)
     assert all_split_allocs.shape == (v, num_splits)
+
+    start = time.perf_counter()
 
     for i in range(n):
         if i % 100 == 0:
@@ -331,6 +335,10 @@ def simulate(
         # utility returns negative
         if results.fun > init_util:
             print("Initial state has better utility", results.fun, init_util)
+            equilibrium_count += 1
+            if equilibrium_count >= v:
+                print(f"Equilibrium reached after {i+1} iterations.")
+                break
             continue
 
         if not split:
@@ -368,6 +376,9 @@ def simulate(
         if equilibrium_count >= v:
             print(f"Equilibrium reached after {i+1} iterations.")
             break
+
+    end = time.perf_counter()
+    print(f"Simulation took {end - start:.2f} seconds.")
 
     return w, all_split_allocs
 

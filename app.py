@@ -6,14 +6,15 @@ import flask_caching
 
 app = Flask(__name__)
 
-config={
-    'CACHE_TYPE': 'filesystem',
-    'CACHE_DIR': '.cache',
-    'CACHE_THRESHOLD': 10000,
-    'CACHE_DEFAULT_TIMEOUT': 0,
+config = {
+    "CACHE_TYPE": "filesystem",
+    "CACHE_DIR": ".cache",
+    "CACHE_THRESHOLD": 10000,
+    "CACHE_DEFAULT_TIMEOUT": 0,
 }
 app.config.from_mapping(config)
 cache = flask_caching.Cache(app)
+
 
 @app.route("/")
 def index():
@@ -43,6 +44,8 @@ def run_simulation():
     w, split_alloc = simulate_cache(
         v, s, sigma, theta, pi, r, deg, n=n, epsilon=epsilon, split=split
     )
+    print(split_alloc)
+    print(w)
     # Visualize
     visualize(
         v,
@@ -57,8 +60,10 @@ def run_simulation():
     )
     return jsonify({"status": "ok"})
 
+
 @cache.memoize()
-def simulate_cache(v: int,
+def simulate_cache(
+    v: int,
     s: int,
     sigma: np.ndarray,
     theta: np.ndarray,
@@ -69,8 +74,10 @@ def simulate_cache(v: int,
     epsilon: float = 1e-3,
     init: np.ndarray | None = None,
     split_init: np.ndarray | None = None,
-    split: bool = False):
+    split: bool = False,
+):
     return simulate(v, s, sigma, theta, pi, r, deg, n=n, epsilon=epsilon, split=split)
+
 
 if __name__ == "__main__":
     app.run(debug=True)
