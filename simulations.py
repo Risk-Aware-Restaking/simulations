@@ -101,6 +101,7 @@ def visualize(
         label=[f"v{i}\nstake: {sigma[i]}" for i in range(v)],
         x=[0] * v,
         y=[100 * i * num_splits for i in range(v)],
+        shape=["circle"] * v
     )
 
     if split:
@@ -113,6 +114,7 @@ def visualize(
             ],
             x=[200] * (v * num_splits),
             y=[100 * i for i in range(v * num_splits)],
+            shape=["circle"] * (v * num_splits)
         )
 
     net.add_nodes(
@@ -120,6 +122,7 @@ def visualize(
         label=[f"s{i}\nreward: {r[i]}\ndeg: {deg[i]}" for i in range(s)],
         x=[400] * s,
         y=[150 * i for i in range(s)],
+        shape=["circle"] * s
     )
 
     if not split:
@@ -132,14 +135,31 @@ def visualize(
             for j in range(num_splits):
                 net.add_edge(f"v{i}", f"v{i}_split{j}", weight=5)
                 for k in range(s):
-                    if not np.isclose(w[i * num_splits + j][k], 0, atol=0.01):
+                    if not np.isclose(w[i * num_splits + j][k], 0, atol=0.02):
                         net.add_edge(
                             f"v{i}_split{j}",
                             f"s{k}",
                             weight=5,
                             label=f"{w[i * num_splits + j][k]:.2f}",
                         )
-    net.toggle_physics(False)
+    
+    net.set_options("""
+        var options = {
+        "nodes": {
+            
+        },
+        "edges": {
+            "font": {
+                "align": "top"
+            },
+            "weight": "5"
+        },
+        "physics": {
+            "enabled": false
+        }
+        }
+        """
+    )
     net.show(filename, notebook=False)
 
 
@@ -374,7 +394,7 @@ if __name__ == "__main__":
     r = np.array([2, 1, 3])
 
     # degree per service
-    deg = np.array([2, 2, 3])
+    deg = np.array([1, 1.5, 1.5])
 
     # whether we use splitting or not
     split = True
