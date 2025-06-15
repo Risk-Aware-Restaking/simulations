@@ -269,6 +269,8 @@ def simulate(
                 for i in range(num_splits):
                     if np.any(validator_splits[i] > split_allocation[i]):
                         return 1e9
+                    if split_allocation[i] == 0:
+                        return 1e9
                     restake = validator_row_sums[i] / split_allocation[i]
                     if restake > deg[i]:
                         return 1e9
