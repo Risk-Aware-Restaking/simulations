@@ -1,4 +1,6 @@
 import numpy as np
+import time 
+
 
 
 def get_split_choice(Degrees):
@@ -372,6 +374,7 @@ def calculate_equilibrium_algorithm(degrees, rewards, stakes):
     return all_final_splits_per_stake, all_final_allocations_per_stake
 
 
+
 def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degree=5.0, degree_increment=0.5, seed=None):
     """
     Generates a random network graph with specified validator and service numbers,
@@ -419,26 +422,35 @@ def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degre
 
 
     service_degrees = []
-    service_rewards = []
-
-    # Assign degrees ensuring service_num >= 2 * degree for each chosen degree
-    for deg in sorted(possible_degrees, reverse=True): # Start with highest degrees to prioritize fulfilling condition
-        required_for_this_deg = int(2 * deg)
-
-        # If we have enough services left and this degree's demand can fit
-        if service_num >= required_for_this_deg and len(service_degrees) + required_for_this_deg <= service_num:
-            service_degrees.extend([deg] * required_for_this_deg)
-        elif len(service_degrees) < service_num: # If we have some slots left, but not enough for full demand
-            # Assign remaining services to the current degree, as a fallback
-            remaining_slots = service_num - len(service_degrees)
-            service_degrees.extend([deg] * remaining_slots)
-            break # All services assigned
     
-    # If after this, `service_degrees` is still too short (e.g., if service_num was too small for any 2*D)
-    # This can happen if service_num is very small (e.g., service_num = 1, but min_degree=1 needs 2 services).
-    # In such edge cases, it's impossible to meet the condition. We'll fill with min_degree.
-    while len(service_degrees) < service_num:
-        service_degrees.append(min_degree) # Fallback to min_degree if slots remain
+    remaining_service_slots = service_num
+
+    # 1. Prioritize filling minimum requirements for each degree, starting from smallest degrees.
+    # This ensures that if 1.0 is a possible degree, it will get 2 services if service_num >= 2.
+    for deg in sorted(possible_degrees): # Iterate from lowest to highest
+        required_for_this_deg = int(2 * deg)
+        
+        # If we have enough remaining slots to fulfill this degree's requirement
+        if remaining_service_slots >= required_for_this_deg:
+            service_degrees.extend([deg] * required_for_this_deg)
+            remaining_service_slots -= required_for_this_deg
+        else:
+            # If we don't have enough slots for this degree's full requirement,
+            # but we still have slots left, assign the remaining slots to the current degree.
+            # This handles cases where service_num is small and can't fit many full blocks.
+            if remaining_service_slots > 0:
+                service_degrees.extend([deg] * remaining_service_slots)
+                remaining_service_slots = 0
+            break # No more slots or not enough for current deg's min
+
+    # 2. If there are still remaining slots (e.g., if the sum of minimums was less than service_num),
+    # fill them randomly from all possible degrees.
+    if remaining_service_slots > 0:
+        service_degrees.extend(np.random.choice(possible_degrees, size=remaining_service_slots, replace=True).tolist())
+    
+    # Ensure the final list has exactly `service_num` elements (should already be the case with the loop logic)
+    # and shuffle them to mix the order.
+    np.random.shuffle(service_degrees)
 
     # Now, fill rewards for services
     assigned_rewards = np.random.uniform(1.0, 2.0, service_num).tolist()
@@ -449,48 +461,81 @@ def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degre
 
     return service_degrees, assigned_rewards, stakes
 
-# --- Example Usage ---
+
+# --- Performance Testing for calculate_equilibrium_algorithm ---
 if __name__ == "__main__":
-    print("--- Testing calculate_equilibrium_algorithm with Generated Data ---")
+    print("--- Performance Testing: calculate_equilibrium_algorithm ---")
 
-    # Generate a random network graph with a fixed seed for reproducibility
-    validator_count = 20
-    service_count = 10
-    test_seed = 42 # Set a fixed seed here
-    generated_degrees, generated_rewards, generated_stakes = generate_network_graph(
-        validator_count, service_count, min_degree=1.0, max_degree=3.0, degree_increment=0.5, seed=test_seed
-    )
+    results_table = []
+    # Headers for the table
+    results_table.append(f"{'Validator Num':<15} {'Service Num':<15} {'Execution Time (s)':<20}")
+    results_table.append("-" * 50)
 
-    print(f"Generated Network Parameters (Seed: {test_seed}):")
-    print(f"  Validators: {validator_count}, Services: {service_count}")
-    print(f"  Generated Degrees (for services): {generated_degrees}")
-    print(f"  Generated Rewards (for services): {[round(r, 2) for r in generated_rewards]}") # Round for cleaner printing
-    print(f"  Generated Stakes (for validators): {generated_stakes}\n")
+    # Fixed seed for reproducibility of generated data
+    fixed_seed_for_generation = 123
 
-    # Now, use the generated data to test calculate_equilibrium_algorithm
-    all_splits, all_allocations = calculate_equilibrium_algorithm(
-        generated_degrees, generated_rewards, generated_stakes
-    )
+    for v_num in range(1, 11): # Validator num from 1 to 10
+        for s_num in range(1, 11): # Service num from 1 to 10
+            # Ensure service_num <= validator_num as per generate_network_graph's constraint
+            actual_s_num = min(s_num, v_num)
+            if actual_s_num == 0: # Skip if service_num becomes 0 due to min(0, V)
+                continue
 
-    print("--- Results from calculate_equilibrium_algorithm ---")
-    print(f"Original Degrees (used in algorithm): {generated_degrees}")
-    print(f"Original Rewards (used in algorithm): {[round(r, 2) for r in generated_rewards]}")
-    print(f"Stakes to test (used in algorithm): {generated_stakes}\n")
+            print(f"\n--- Test Case: Validators={v_num}, Services={actual_s_num} ---")
+            try:
+                # Generate network graph with fixed seed for consistent problem setup
+                degrees, rewards, stakes = generate_network_graph(
+                    validator_num=v_num,
+                    service_num=actual_s_num,
+                    min_degree=1.0, # You can adjust these parameters
+                    max_degree=3.0,
+                    degree_increment=0.5,
+                    seed=fixed_seed_for_generation
+                )
 
-    for i, stake_val in enumerate(generated_stakes):
-        print(f"--- Results for Total Stake = {stake_val:.2f} ---")
-        
-        current_final_splits = all_splits[i]
-        current_final_allocations = all_allocations[i]
+                print(f"  Generated Degrees (for services): {degrees}")
+                print(f"  Generated Rewards (for services): {[round(r, 2) for r in rewards]}")
+                print(f"  Generated Stakes (for validators): {stakes}\n")
 
-        print(f"  Splits (d values): {current_final_splits}")
-        print(f"  Sum of Splits: {np.sum(current_final_splits):.4f}")
+                start_time = time.time()
+                all_splits, all_allocations = calculate_equilibrium_algorithm(
+                    degrees, rewards, stakes
+                )
+                end_time = time.time()
+                execution_time = end_time - start_time
+                
+                results_table.append(f"{v_num:<15} {actual_s_num:<15} {execution_time:<20.6f}")
 
-        print("  Allocations (within each split):")
-        # Now, current_final_allocations is a 2D NumPy array.
-        # Iterating over it directly yields its rows (which are the 1D allocation vectors).
-        for j, alloc_vec in enumerate(current_final_allocations):
-            # Re-get unique degrees for printing context, using the generated degrees
-            unique_degrees_for_context, _ = get_split_choice(generated_degrees)
-            print(f"    Split {j+1} (Degree Threshold: {unique_degrees_for_context[j]}): {alloc_vec.round(4).tolist()}")
-        print("-" * 40)
+                print(f"  Execution Time: {execution_time:.6f} seconds\n")
+                
+                print("  --- Results from calculate_equilibrium_algorithm ---")
+                for i, stake_val in enumerate(stakes):
+                    print(f"    --- For Total Stake = {stake_val:.2f} ---")
+                    
+                    current_final_splits = all_splits[i]
+                    current_final_allocations = all_allocations[i]
+
+                    print(f"      Splits (d values): {current_final_splits}")
+                    print(f"      Sum of Splits: {np.sum(current_final_splits):.4f}")
+
+                    print("      Allocations (within each split):")
+                    unique_degrees_for_context, _ = get_split_choice(degrees)
+                    for j, alloc_vec in enumerate(current_final_allocations):
+                        print(f"        Split {j+1} (Degree Threshold: {unique_degrees_for_context[j]}): {alloc_vec.round(4).tolist()}")
+                    print("-" * 40) # Separator for each stake within a test case
+
+            except ValueError as e:
+                results_table.append(f"{v_num:<15} {actual_s_num:<15} {'Error: ' + str(e):<20}")
+                print(f"  Error during test case: {e}")
+            except Exception as e:
+                results_table.append(f"{v_num:<15} {actual_s_num:<15} {'Unexpected Error: ' + str(e):<20}")
+                print(f"  Unexpected error during test case: {e}")
+
+    print("\n" * 2) # Add some spacing before the summary table
+    for line in results_table:
+        print(line)
+
+    print("\n--- Performance Test Complete ---")
+    print("Note: Times are in seconds and may vary slightly between runs.")
+    print("The 'Error' entries indicate cases where service_num or other constraints ")
+    print("prevented graph generation (e.g., service_num too small for required degrees).")
