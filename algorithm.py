@@ -512,7 +512,7 @@ if __name__ == "__main__":
                     current_final_splits = all_splits[i]
                     current_final_allocations = all_allocations[i]
 
-                    print(f"      Splits (d values): {current_final_splits}")
+                    print(f"      Splits: {current_final_splits}")
                     print(f"      Sum of Splits: {np.sum(current_final_splits):.4f}")
 
                     print("      Allocations (within each split):")
