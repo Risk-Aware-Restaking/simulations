@@ -375,6 +375,7 @@ def calculate_equilibrium_algorithm(degrees, rewards, stakes):
 
 
 
+
 def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degree=5.0, degree_increment=0.5, seed=None):
     """
     Generates a random network graph with specified validator and service numbers,
@@ -420,47 +421,43 @@ def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degre
     if not possible_degrees: # Handle case where arange might yield empty list if max_degree < min_degree
         possible_degrees = [min_degree]
 
-
-    service_degrees = []
-    
+    assigned_service_degrees = []
     remaining_service_slots = service_num
 
     # 1. Prioritize filling minimum requirements for each degree, starting from smallest degrees.
-    # This ensures that if 1.0 is a possible degree, it will get 2 services if service_num >= 2.
-    for deg in sorted(possible_degrees): # Iterate from lowest to highest
+    #    This ensures that lower degrees (like 1.0) get their required minimum count if possible.
+    #    Crucially, it only includes degrees if their full 2*D requirement can be met from remaining slots.
+    for deg in sorted(possible_degrees): # Iterate from lowest to highest degree
         required_for_this_deg = int(2 * deg)
         
-        # If we have enough remaining slots to fulfill this degree's requirement
+        # Check if we can add 'required_for_this_deg' items AND not exceed service_num total
         if remaining_service_slots >= required_for_this_deg:
-            service_degrees.extend([deg] * required_for_this_deg)
+            assigned_service_degrees.extend([deg] * required_for_this_deg)
             remaining_service_slots -= required_for_this_deg
         else:
-            # If we don't have enough slots for this degree's full requirement,
-            # but we still have slots left, assign the remaining slots to the current degree.
-            # This handles cases where service_num is small and can't fit many full blocks.
-            if remaining_service_slots > 0:
-                service_degrees.extend([deg] * remaining_service_slots)
-                remaining_service_slots = 0
-            break # No more slots or not enough for current deg's min
-
-    # 2. If there are still remaining slots (e.g., if the sum of minimums was less than service_num),
-    # fill them randomly from all possible degrees.
-    if remaining_service_slots > 0:
-        service_degrees.extend(np.random.choice(possible_degrees, size=remaining_service_slots, replace=True).tolist())
+            # If we cannot meet the 2*D requirement for this degree,
+            # we stop trying to fulfill 2*D for this degree and any higher ones.
+            # Any remaining slots will be filled with min_degree.
+            break 
+            
+    # 2. Fill any remaining slots (up to `service_num`) with `min_degree`.
+    #    These services are "placeholders" to meet `service_num` total and do not
+    #    necessarily adhere to the `2*D` constraint for their own degree value.
+    #    This prevents cases where `service_num` is too small to fulfill `2*D` for any
+    #    meaningful set of degrees, ensuring a valid `service_degrees` list of correct length.
+    while len(assigned_service_degrees) < service_num:
+        assigned_service_degrees.append(min_degree)
     
-    # Ensure the final list has exactly `service_num` elements (should already be the case with the loop logic)
-    # and shuffle them to mix the order.
-    np.random.shuffle(service_degrees)
+    # Shuffle the degrees to randomize their order, as the assignment was sorted.
+    np.random.shuffle(assigned_service_degrees)
 
     # Now, fill rewards for services
     assigned_rewards = np.random.uniform(1.0, 2.0, service_num).tolist()
 
     # Generate random integer stakes for validators
-    # Each stake is a random integer from 1 to 10
     stakes = np.random.randint(1, 11, size=validator_num).tolist() # 11 because randint is exclusive on high
 
-    return service_degrees, assigned_rewards, stakes
-
+    return assigned_service_degrees, assigned_rewards, stakes
 
 # --- Performance Testing for calculate_equilibrium_algorithm ---
 if __name__ == "__main__":
