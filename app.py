@@ -39,14 +39,28 @@ def run_simulation():
     n = int(data.get("n", 200))
     epsilon = float(data.get("epsilon", 1e-3))
     split = bool(data.get("split", False))
+    optimizer_type = data.get("optimizer_type", "differential_evolution")
+    print(optimizer_type)
 
     # Run simulation
     w, split_alloc = simulate_cache(
-        v, s, sigma, theta, pi, r, deg, n=n, epsilon=epsilon, split=split
+        v,
+        s,
+        sigma,
+        theta,
+        pi,
+        r,
+        deg,
+        n=n,
+        epsilon=epsilon,
+        split=split,
+        optimizer_type=optimizer_type,
     )
-    #print(split_alloc)
-    #print(w)
-    reward = reward_calc(v, s, sigma, r, deg, w, split=split, split_allocation=split_alloc)
+    # print(split_alloc)
+    # print(w)
+    reward = reward_calc(
+        v, s, sigma, r, deg, w, split=split, split_allocation=split_alloc
+    )
     validator_rewards = get_validator_reward(reward, v, len(np.unique(deg)))
     # Visualize
     visualize(
@@ -60,14 +74,16 @@ def run_simulation():
         split_allocation=split_alloc,
         filename="mygraph.html",
     )
-    return jsonify({
-        "status": "ok",
-        "split_allocation": split_alloc.tolist(),
-        "w": w.tolist(),
-        "split_restaking_deg": (w.sum(axis=1) / split_alloc.reshape(-1)).tolist(),
-        "reward": reward.tolist(),
-        "validator_rewards": validator_rewards.tolist()
-    })
+    return jsonify(
+        {
+            "status": "ok",
+            "split_allocation": split_alloc.tolist(),
+            "w": w.tolist(),
+            "split_restaking_deg": (w.sum(axis=1) / split_alloc.reshape(-1)).tolist(),
+            "reward": reward.tolist(),
+            "validator_rewards": validator_rewards.tolist(),
+        }
+    )
 
 
 @cache.memoize()
@@ -84,8 +100,23 @@ def simulate_cache(
     init: np.ndarray | None = None,
     split_init: np.ndarray | None = None,
     split: bool = False,
+    optimizer_type: str = "differential_evolution",
 ):
-    return simulate(v, s, sigma, theta, pi, r, deg, n=n, epsilon=epsilon, split=split)
+    return simulate(
+        v,
+        s,
+        sigma,
+        theta,
+        pi,
+        r,
+        deg,
+        n=n,
+        epsilon=epsilon,
+        init=init,
+        split_init=split_init,
+        split=split,
+        optimizer_type=optimizer_type,
+    )
 
 
 if __name__ == "__main__":

@@ -189,6 +189,7 @@ def simulate(
     init: np.ndarray | None = None,
     split_init: np.ndarray | None = None,
     split: bool = False,
+    optimizer_type: str = "differential_evolution",
 ) -> tuple[np.ndarray, np.ndarray]:
     assert len(sigma) == v, "Stake must have length equal to number of validators."
     assert len(r) == s, "Reward must have length equal to number of services."
@@ -326,11 +327,32 @@ def simulate(
             )
         )
         init_util = utility(x0)
-        results = optimize.differential_evolution(
-            utility,
-            bounds,
-            x0=x0,
-        )
+        if optimizer_type == "differential_evolution":
+            results = optimize.differential_evolution(
+                utility,
+                bounds,
+                x0=x0,
+            )
+        elif optimizer_type == "dual_annealing":
+            results = optimize.dual_annealing(
+                utility,
+                bounds,
+                x0=x0,
+            )
+        elif optimizer_type == "shgo":
+            results = optimize.shgo(
+                utility,
+                bounds,
+            )
+        elif optimizer_type == "direct":
+            results = optimize.minimize(
+                utility,
+                x0=x0,
+                method="direct",
+                bounds=bounds,
+            )
+        else:
+            raise ValueError(f"Unknown optimizer type: {optimizer_type}")
 
         # utility returns negative
         if results.fun > init_util:

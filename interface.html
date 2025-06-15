@@ -49,6 +49,14 @@
                         <option value="false">No</option>
                     </select>
                 </label>
+                <label>Optimizer Type:
+                    <select name="optimizer">
+                        <option value="differential_evolution" selected>Differential Evolution</option>
+                        <option value="dual_annealing">Dual Annealing</option>
+                        <option value="shgo">SHGO</option>
+                        <option value="direct">Direct</option>
+                    </select>
+                </label>
                 <button type="submit">Generate Graph</button>
             </form>
         </div>
@@ -116,6 +124,7 @@
         data['n'] = Number(data['n']);
         data['epsilon'] = Number(data['epsilon']);
         data['split'] = data['split'] === 'true';
+        data['optimizer_type'] = form.optimizer.value;
         try {
             const resp = await fetch('/run_simulation', {
                 method: 'POST',
