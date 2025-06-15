@@ -1,5 +1,7 @@
 import numpy as np
 import time 
+from simulations import reward_calc, stake_ratio, original_w, get_validator_reward, visualize, simulate
+
 
 
 
@@ -459,80 +461,128 @@ def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degre
 
     return assigned_service_degrees, assigned_rewards, stakes
 
-# --- Performance Testing for calculate_equilibrium_algorithm ---
 if __name__ == "__main__":
-    print("--- Performance Testing: calculate_equilibrium_algorithm ---")
+    print("--- Comparing Algorithm Performance and Results ---")
 
-    results_table = []
-    # Headers for the table
-    results_table.append(f"{'Validator Num':<15} {'Service Num':<15} {'Execution Time (s)':<20}")
-    results_table.append("-" * 50)
+    comparison_results_table = []
+    comparison_results_table.append(f"{'V Num':<8} {'S Num':<8} {'Your Algo Time (s)':<20} {'New Algo Time (s)':<20} {'Time Diff (s)':<15}")
+    comparison_results_table.append("-" * 75)
 
-    # Fixed seed for reproducibility of generated data
+    # Fixed seed for reproducibility of generated data for all tests
     fixed_seed_for_generation = 123
+    
+    # Parameters for the new simulation algorithm (tuned for faster testing)
+    simulate_iterations = 1 # Total iterations for the outer simulation loop
+    simulate_optimizer_type = "differential_evolution"
+    
+    # Loop ranges for validators and services
+    v_range = range(1, 11) # From 1 to 10 validators
+    s_range = range(1, 11) # From 1 to 10 services
 
-    for v_num in range(1, 11): # Validator num from 1 to 10
-        for s_num in range(1, 11): # Service num from 1 to 10
+    for v_num in v_range:
+        for s_num in s_range:
             # Ensure service_num <= validator_num as per generate_network_graph's constraint
             actual_s_num = min(s_num, v_num)
             if actual_s_num == 0: # Skip if service_num becomes 0 due to min(0, V)
                 continue
 
-            print(f"\n--- Test Case: Validators={v_num}, Services={actual_s_num} ---")
+            print(f"\n\n{'='*10} Test Case: Validators={v_num}, Services={actual_s_num} {'='*10}")
+            
             try:
                 # Generate network graph with fixed seed for consistent problem setup
-                degrees, rewards, stakes = generate_network_graph(
+                # Degrees, Rewards (for services), and Stakes (for validators)
+                generated_degrees_list, generated_rewards_list, generated_stakes_list = generate_network_graph(
                     validator_num=v_num,
                     service_num=actual_s_num,
-                    min_degree=1.0, # You can adjust these parameters
+                    min_degree=1.0,
                     max_degree=3.0,
-                    degree_increment=0.5,
+                    degree_increment=0.5, # Reverted to 0.5 as requested
                     seed=fixed_seed_for_generation
                 )
+                
+                # Convert to numpy arrays for the algorithms
+                generated_degrees = np.array(generated_degrees_list)
+                generated_rewards = np.array(generated_rewards_list)
+                generated_stakes = np.array(generated_stakes_list)
 
-                print(f"  Generated Degrees (for services): {degrees}")
-                print(f"  Generated Rewards (for services): {[round(r, 2) for r in rewards]}")
-                print(f"  Generated Stakes (for validators): {stakes}\n")
+                print(f"  Generated Network Parameters:")
+                print(f"    Degrees (for services): {generated_degrees_list}")
+                print(f"    Rewards (for services): {[round(r, 2) for r in generated_rewards_list]}")
+                print(f"    Stakes (for validators): {generated_stakes_list}\n")
 
-                start_time = time.time()
-                all_splits, all_allocations = calculate_equilibrium_algorithm(
-                    degrees, rewards, stakes
+                # --- Run Your Algorithm (calculate_equilibrium_algorithm) ---
+                print("  --- Running Your Algorithm ---")
+                start_time_your_algo = time.perf_counter()
+                your_all_splits, your_all_allocations = calculate_equilibrium_algorithm(
+                    generated_degrees, generated_rewards, generated_stakes
                 )
-                end_time = time.time()
-                execution_time = end_time - start_time
+                end_time_your_algo = time.perf_counter()
+                time_your_algo = end_time_your_algo - start_time_your_algo
+                print(f"  Execution Time (Your Algo): {time_your_algo:.6f} seconds")
+
+                # Display results of your algorithm (first stake only for brevity)
+                if your_all_splits and your_all_allocations:
+                    print(f"    Your Algo Results (for first stake {generated_stakes[0]}):")
+                    print(f"      Splits: {your_all_splits[0]}")
+                    print(f"      Sum of Splits: {np.sum(your_all_splits[0]):.4f}")
+                    # Print allocations for first split only
+                    if len(your_all_allocations[0]) > 0:
+                        print(f"      Allocation for Split 1: {your_all_allocations[0][0].round(4).tolist()}")
+                else:
+                    print("    Your Algo produced empty results (e.g., due to constraints).")
+                print("-" * 50)
+
+                # --- Prepare and Run New Algorithm (simulate) ---
+                print("  --- Running New Algorithm (simulate) ---")
+                # Generate theta and pi (not produced by generate_network_graph)
+                # Use numpy's random generator for consistency with the seed
+                np.random.seed(fixed_seed_for_generation + 1) # Use a different seed for theta/pi but still fixed
+                generated_theta = np.random.uniform(0.1, 1.0, actual_s_num)
+                generated_pi = np.random.uniform(1.0, 5.0, actual_s_num)
                 
-                results_table.append(f"{v_num:<15} {actual_s_num:<15} {execution_time:<20.6f}")
+                start_time_new_algo = time.perf_counter()
+                new_w, new_split_allocs = simulate(
+                    v=v_num,
+                    s=actual_s_num,
+                    sigma=generated_stakes,
+                    theta=generated_theta,
+                    pi=generated_pi,
+                    r=generated_rewards,
+                    deg=generated_degrees, # Use the generated service degrees here
+                    n=simulate_iterations,
+                    split=True, # For comparison, use splitting
+                    optimizer_type=simulate_optimizer_type,
+                )
+                end_time_new_algo = time.perf_counter()
+                time_new_algo = end_time_new_algo - start_time_new_algo
+                print(f"  Execution Time (New Algo): {time_new_algo:.6f} seconds")
 
-                print(f"  Execution Time: {execution_time:.6f} seconds\n")
-                
-                print("  --- Results from calculate_equilibrium_algorithm ---")
-                for i, stake_val in enumerate(stakes):
-                    print(f"    --- For Total Stake = {stake_val:.2f} ---")
-                    
-                    current_final_splits = all_splits[i]
-                    current_final_allocations = all_allocations[i]
+                # Display results of new algorithm
+                print(f"    New Algo Results:")
+                print(f"      Final Weights (w):\n{new_w}")
+                print(f"      Final Split Allocations (per validator):\n{new_split_allocs}")
+                print("-" * 50)
 
-                    print(f"      Splits: {current_final_splits}")
-                    print(f"      Sum of Splits: {np.sum(current_final_splits):.4f}")
-
-                    print("      Allocations (within each split):")
-                    unique_degrees_for_context, _ = get_split_choice(degrees)
-                    for j, alloc_vec in enumerate(current_final_allocations):
-                        print(f"        Split {j+1} (Degree Threshold: {unique_degrees_for_context[j]}): {alloc_vec.round(4).tolist()}")
-                    print("-" * 40) # Separator for each stake within a test case
+                # Add times to the comparison table
+                comparison_results_table.append(
+                    f"{v_num:<8} {actual_s_num:<8} {time_your_algo:<20.6f} {time_new_algo:<20.6f} {time_new_algo - time_your_algo:<15.6f}"
+                )
 
             except ValueError as e:
-                results_table.append(f"{v_num:<15} {actual_s_num:<15} {'Error: ' + str(e):<20}")
+                comparison_results_table.append(f"{v_num:<8} {actual_s_num:<8} {'Error: ' + str(e):<20} {'N/A':<20} {'N/A':<15}")
                 print(f"  Error during test case: {e}")
+            except AssertionError as e:
+                 comparison_results_table.append(f"{v_num:<8} {actual_s_num:<8} {'Assert Error: ' + str(e):<20} {'N/A':<20} {'N/A':<15}")
+                 print(f"  Assertion Error during test case: {e}")
             except Exception as e:
-                results_table.append(f"{v_num:<15} {actual_s_num:<15} {'Unexpected Error: ' + str(e):<20}")
+                comparison_results_table.append(f"{v_num:<8} {actual_s_num:<8} {'Unexpected Error: ' + type(e).__name__ + ': ' + str(e):<20} {'N/A':<20} {'N/A':<15}")
                 print(f"  Unexpected error during test case: {e}")
 
     print("\n" * 2) # Add some spacing before the summary table
-    for line in results_table:
+    for line in comparison_results_table:
         print(line)
 
-    print("\n--- Performance Test Complete ---")
+    print("\n--- Comparison Test Complete ---")
     print("Note: Times are in seconds and may vary slightly between runs.")
-    print("The 'Error' entries indicate cases where service_num or other constraints ")
-    print("prevented graph generation (e.g., service_num too small for required degrees).")
+    print("The 'Error' entries indicate cases where constraints prevented graph generation or algorithm execution.")
+    print("The 'deg[k]' usage in simulate's utility is aligned to unique degrees for splits.")
