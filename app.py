@@ -1,7 +1,7 @@
 from flask import Flask, request, send_from_directory, jsonify
 import numpy as np
 import os
-from simulations import simulate, visualize
+from simulations import simulate, visualize, reward_calc, get_validator_reward
 import flask_caching
 
 app = Flask(__name__)
@@ -32,8 +32,8 @@ def run_simulation():
     v = int(data["v"])
     s = int(data["s"])
     sigma = np.array(data["sigma"], dtype=float)
-    theta = np.array(data["theta"], dtype=float)
-    pi = np.array(data["pi"], dtype=float)
+    theta = np.zeros(3)
+    pi = np.zeros(3)
     r = np.array(data["r"], dtype=float)
     deg = np.array(data["deg"], dtype=float)
     n = int(data.get("n", 200))
@@ -44,8 +44,10 @@ def run_simulation():
     w, split_alloc = simulate_cache(
         v, s, sigma, theta, pi, r, deg, n=n, epsilon=epsilon, split=split
     )
-    print(split_alloc)
-    print(w)
+    #print(split_alloc)
+    #print(w)
+    reward = reward_calc(v, s, sigma, r, deg, w, split=split, split_allocation=split_alloc)
+    validator_rewards = get_validator_reward(reward, v, len(np.unique(deg)))
     # Visualize
     visualize(
         v,
@@ -58,7 +60,14 @@ def run_simulation():
         split_allocation=split_alloc,
         filename="mygraph.html",
     )
-    return jsonify({"status": "ok"})
+    return jsonify({
+        "status": "ok",
+        "split_allocation": split_alloc.tolist(),
+        "w": w.tolist(),
+        "split_restaking_deg": (w.sum(axis=1) / split_alloc.reshape(-1)).tolist(),
+        "reward": reward.tolist(),
+        "validator_rewards": validator_rewards.tolist()
+    })
 
 
 @cache.memoize()
