@@ -39,8 +39,6 @@
                 <label>Number of Validators (v): <input type="number" name="v" value="2" min="1" required></label>
                 <label>Number of Services (s): <input type="number" name="s" value="3" min="1" required></label>
                 <label>Stake per Validator (sigma, comma-separated): <input type="text" name="sigma" value="1,1" required></label>
-                <label>Threshold per Service (theta, comma-separated): <input type="text" name="theta" value="0.25,0.5,0.6" required></label>
-                <label>Prize per Service (pi, comma-separated): <input type="text" name="pi" value="2,1,3" required></label>
                 <label>Reward per Service (r, comma-separated): <input type="text" name="r" value="2,1,3" required></label>
                 <label>Degree per Service (deg, comma-separated): <input type="text" name="deg" value="1,1.5,1.5" required></label>
                 <label>Iterations (n): <input type="number" name="n" value="200" min="1"></label>
@@ -57,12 +55,17 @@
         <div class="graph-section">
             <h3>Graph Visualization</h3>
             <iframe id="graphFrame" src="mygraph.html"></iframe>
+            <div id="resultsSection">
+                <h3>Simulation Results</h3>
+                <div id="resultsOutput" style="background:#f9f9f9; padding:10px; border:1px solid #ccc;"></div>
+            </div>
         </div>
     </div>
     <div id="loadingOverlay"><span>Loading...</span></div>
     <script>
     const form = document.getElementById('simForm');
     const graphFrame = document.getElementById('graphFrame');
+
     // Add loading overlay
     const loadingDiv = document.createElement('div');
     loadingDiv.id = 'loadingOverlay';
@@ -83,13 +86,33 @@
 
     form.onsubmit = async function(e) {
         e.preventDefault();
+        const formData = new FormData(form);
+        const v = Number(formData.get('v'));
+        const s = Number(formData.get('s'));
+        const sigma = formData.get('sigma').split(',').map(Number);
+        const r = formData.get('r').split(',').map(Number);
+        const deg = formData.get('deg').split(',').map(Number);
+
+        // Validation checks
+        if (sigma.length !== v) {
+            alert(`Number of stakes (sigma) must equal number of validators (${v}). You entered ${sigma.length}.`);
+            return;
+        }
+        if (r.length !== s) {
+            alert(`Number of rewards (r) must equal number of services (${s}). You entered ${r.length}.`);
+            return;
+        }
+        if (deg.length !== s) {
+            alert(`Number of degrees (deg) must equal number of services (${s}). You entered ${deg.length}.`);
+            return;
+        }
         loadingDiv.style.display = 'flex';
-        const data = Object.fromEntries(new FormData(form).entries());
-        ['sigma','theta','pi','r','deg'].forEach(k => {
-            data[k] = data[k].split(',').map(Number);
-        });
-        data['v'] = Number(data['v']);
-        data['s'] = Number(data['s']);
+        const data = Object.fromEntries(formData.entries());
+        data['sigma'] = sigma;
+        data['r'] = r;
+        data['deg'] = deg;
+        data['v'] = v;
+        data['s'] = s;
         data['n'] = Number(data['n']);
         data['epsilon'] = Number(data['epsilon']);
         data['split'] = data['split'] === 'true';
@@ -101,6 +124,35 @@
             });
             if (resp.ok) {
                 // Wait a bit to ensure file is written
+                const result = await resp.json();
+
+                const formatMatrix = (matrix) => {
+                    return '<pre>' + matrix.map(row => `[ ${row.map(v => v.toFixed(4)).join(', ')} ]`).join('\n') + '</pre>';
+                };
+
+                const formatArray = (arr) => {
+                    return '<pre>[ ' + arr.map(v => v.toFixed(4)).join(', ') + ' ]</pre>';
+                };
+
+                const outputHtml = `
+                    <h4>Split Allocation:</h4>
+                    ${formatMatrix(result.split_allocation)}
+
+                    <h4>W Allocation Matrix:</h4>
+                    ${formatMatrix(result.w)}
+
+                    <h4>Restaking Degree for each split:</h4>
+                    ${formatArray(result.split_restaking_deg)}
+
+                    <h4>Reward per validatior & split:</h4>
+                    ${formatArray(result.reward)}
+
+                    <h4>Validator Rewards:</h4>
+                    ${formatArray(result.validator_rewards)}
+                `;
+
+                document.getElementById('resultsOutput').innerHTML = outputHtml;
+
                 setTimeout(() => {
                     graphFrame.src = 'mygraph.html?' + Date.now();
                     loadingDiv.style.display = 'none';
