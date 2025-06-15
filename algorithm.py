@@ -1,7 +1,6 @@
 import numpy as np
 
 
-
 def get_split_choice(Degrees):
     """
     Identifies unique degrees, sorts them, and generates masks for elements
@@ -98,7 +97,7 @@ def calc_split_strategy(d, mask, rewards):
     # Create a mutable list of active indices from the input mask.
     # This list will be modified as indices get 'capped' at 1.
     active_mask = list(mask)
-    print(f"Initial active indices: {active_mask}") 
+    print(f"Initial active indices: {active_mask}")
 
     # Initialize the remaining 'd' to be distributed.
     remaining_d = float(d)
@@ -138,7 +137,8 @@ def calc_split_strategy(d, mask, rewards):
             current_iteration_temp_allocations[idx] = share
 
             # If this share is 1.0 or greater, it needs to be capped.
-            if share >= 1.0:
+            if share > 1.0:
+                print("Warning : Share exceeds 1.0, capping at 1.0.")
                 newly_capped_indices.append(idx)
 
         # --- Check for Capped Values and Update ---
@@ -160,10 +160,12 @@ def calc_split_strategy(d, mask, rewards):
                 if allocate[idx] < 1.0:
                     allocate[idx] = 1.0
                     remaining_d -= 1.0
-            
+
             # Rebuild active_mask by removing the newly capped indices
-            active_mask = [idx for idx in active_mask if idx not in newly_capped_indices]
-            active_mask.sort() # Keep the mask sorted for consistency
+            active_mask = [
+                idx for idx in active_mask if idx not in newly_capped_indices
+            ]
+            active_mask.sort()  # Keep the mask sorted for consistency
 
     # --- Final Clipping ---
     # Ensure all values in the final allocation are between 0.0 and 1.0.
@@ -188,8 +190,9 @@ def calc_capital_efficiency(rewards, allocation):
                or empty.
     """
     # --- Input Validation ---
-    if not isinstance(rewards, (list, np.ndarray)) or \
-       not isinstance(allocation, (list, np.ndarray)):
+    if not isinstance(rewards, (list, np.ndarray)) or not isinstance(
+        allocation, (list, np.ndarray)
+    ):
         print("Error: Both 'rewards' and 'allocation' must be lists or NumPy arrays.")
         return 0.0
 
@@ -236,13 +239,15 @@ def calculate_split_algorithm(degrees, rewards):
                                         across all splits, but (split / base_efficiency) will be.
     """
     # --- Input Validation ---
-    if not isinstance(degrees, (list, np.ndarray)) or not isinstance(rewards, (list, np.ndarray)):
+    if not isinstance(degrees, (list, np.ndarray)) or not isinstance(
+        rewards, (list, np.ndarray)
+    ):
         print("Error: 'degrees' and 'rewards' must be lists or NumPy arrays.")
         return [], [], [], 0.0
-    
+
     # total_stake is hardcoded to 1.0 as per request.
     total_stake = 1.0
-    
+
     rewards_array = np.array(rewards, dtype=float)
 
     # Step 1: Get unique degrees and their corresponding strategy masks
@@ -264,13 +269,17 @@ def calculate_split_algorithm(degrees, rewards):
     total_base_efficiency_sum = sum(base_efficiencies)
 
     # Handle case where all base efficiencies sum to zero.
-    if total_base_efficiency_sum <= 1e-9: # Effectively zero sum of base efficiencies
+    if total_base_efficiency_sum <= 1e-9:  # Effectively zero sum of base efficiencies
         # If total_stake is positive (which it is, hardcoded to 1.0), and base efficiencies are zero,
         # it's impossible to proportionally distribute.
-        print("Warning: All calculated base efficiencies are zero. Cannot proportionally distribute a positive total_stake.")
+        print(
+            "Warning: All calculated base efficiencies are zero. Cannot proportionally distribute a positive total_stake."
+        )
         num_strategies = len(unique_degrees)
         final_splits = [0.0] * num_strategies
-        final_allocations = [np.zeros_like(rewards_array) for _ in range(num_strategies)]
+        final_allocations = [
+            np.zeros_like(rewards_array) for _ in range(num_strategies)
+        ]
         final_efficiencies = [0.0] * num_strategies
         return final_splits, final_allocations, final_efficiencies, 0.0
 
@@ -288,11 +297,11 @@ def calculate_split_algorithm(degrees, rewards):
         # d_val = K_ratio * base_efficiency_for_this_mask
         split_Value = constant_K_ratio * base_efficiencies[i]
         final_splits.append(split_Value)
-        
+
         # Calculate the actual allocation using calc_split_strategy with this d_val
         alloc = calc_split_strategy(unique_degrees[i], mask_indices, rewards_array)
         final_allocations.append(alloc)
-        
+
         # Calculate the actual capital efficiency using calc_capital_efficiency
         eff = calc_capital_efficiency(rewards_array, alloc)
         final_efficiencies.append(eff)
@@ -328,10 +337,12 @@ def calculate_equilibrium_algorithm(degrees, rewards, stakes):
     if not isinstance(stakes, (list, np.ndarray)):
         print("Error: 'stakes' must be a list or a NumPy array.")
         return [], []
-    if not isinstance(degrees, (list, np.ndarray)) or not isinstance(rewards, (list, np.ndarray)):
+    if not isinstance(degrees, (list, np.ndarray)) or not isinstance(
+        rewards, (list, np.ndarray)
+    ):
         print("Error: 'degrees' and 'rewards' must be lists or NumPy arrays.")
         return [], []
-    
+
     rewards_array = np.array(rewards, dtype=float)
 
     all_final_splits_per_stake = []
@@ -339,10 +350,10 @@ def calculate_equilibrium_algorithm(degrees, rewards, stakes):
 
     for current_stake in stakes:
         # Call the main split calculation algorithm for each stake
-        splits_for_unit_stake, allocations_for_unit_stake, _, _ = calculate_split_algorithm(
-            degrees, rewards_array
+        splits_for_unit_stake, allocations_for_unit_stake, _, _ = (
+            calculate_split_algorithm(degrees, rewards_array)
         )
-        
+
         # Scale the splits by the current_stake
         scaled_splits = [s * current_stake for s in splits_for_unit_stake]
         scaled_allocations = []
@@ -359,6 +370,7 @@ def calculate_equilibrium_algorithm(degrees, rewards, stakes):
         all_final_allocations_per_stake.append(scaled_allocations)
 
     return all_final_splits_per_stake, all_final_allocations_per_stake
+
 
 # --- Example Usage (for testing the new function) ---
 if __name__ == "__main__":
@@ -382,7 +394,7 @@ if __name__ == "__main__":
 
     for i, stake_val in enumerate(stakes_example):
         print(f"--- Results for Total Stake = {stake_val:.2f} ---")
-        
+
         current_final_splits = all_splits[i]
         current_final_allocations = all_allocations[i]
 
@@ -393,6 +405,10 @@ if __name__ == "__main__":
         # Now, current_final_allocations is a 2D NumPy array.
         # Iterating over it directly yields its rows (which are the 1D allocation vectors).
         for j, alloc_vec in enumerate(current_final_allocations):
-            unique_degrees, _ = get_split_choice(degrees_example) # Re-get unique degrees for printing
-            print(f"    Split {j+1} (Degree Threshold: {unique_degrees[j]}): {alloc_vec.round(4).tolist()}")
+            unique_degrees, _ = get_split_choice(
+                degrees_example
+            )  # Re-get unique degrees for printing
+            print(
+                f"    Split {j+1} (Degree Threshold: {unique_degrees[j]}): {alloc_vec.round(4).tolist()}"
+            )
         print("-" * 40)

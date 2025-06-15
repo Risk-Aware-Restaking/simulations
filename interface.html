@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Simulation Interface</title>
+    <link rel="stylesheet" href="lib/tom-select/tom-select.css">
+    <link rel="stylesheet" href="lib/vis-9.1.2/vis-network.css">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { display: flex; }
+        .form-section { width: 350px; margin-right: 40px; }
+        .graph-section { flex: 1; }
+        label { display: block; margin-top: 10px; }
+        input, select { width: 100%; padding: 5px; margin-top: 2px; }
+        button { margin-top: 20px; padding: 10px 20px; }
+        iframe { width: 100%; height: 600px; border: 1px solid #ccc; }
+        /* Loading overlay styles */
+        #loadingOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(255,255,255,0.7);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2em;
+            z-index: 1000;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h2>Simulation Parameter Input</h2>
+    <div class="container">
+        <div class="form-section">
+            <form id="simForm">
+                <label>Number of Validators (v): <input type="number" name="v" value="2" min="1" required></label>
+                <label>Number of Services (s): <input type="number" name="s" value="3" min="1" required></label>
+                <label>Stake per Validator (sigma, comma-separated): <input type="text" name="sigma" value="1,1" required></label>
+                <label>Threshold per Service (theta, comma-separated): <input type="text" name="theta" value="0.25,0.5,0.6" required></label>
+                <label>Prize per Service (pi, comma-separated): <input type="text" name="pi" value="2,1,3" required></label>
+                <label>Reward per Service (r, comma-separated): <input type="text" name="r" value="2,1,3" required></label>
+                <label>Degree per Service (deg, comma-separated): <input type="text" name="deg" value="1,1.5,1.5" required></label>
+                <label>Iterations (n): <input type="number" name="n" value="200" min="1"></label>
+                <label>Epsilon (convergence threshold): <input type="number" step="any" name="epsilon" value="0.001"></label>
+                <label>Split (allow splitting?):
+                    <select name="split">
+                        <option value="true" selected>Yes</option>
+                        <option value="false">No</option>
+                    </select>
+                </label>
+                <button type="submit">Generate Graph</button>
+            </form>
+        </div>
+        <div class="graph-section">
+            <h3>Graph Visualization</h3>
+            <iframe id="graphFrame" src="mygraph.html"></iframe>
+        </div>
+    </div>
+    <div id="loadingOverlay"><span>Loading...</span></div>
+    <script>
+    const form = document.getElementById('simForm');
+    const graphFrame = document.getElementById('graphFrame');
+    // Add loading overlay
+    const loadingDiv = document.createElement('div');
+    loadingDiv.id = 'loadingOverlay';
+    loadingDiv.style.position = 'fixed';
+    loadingDiv.style.top = 0;
+    loadingDiv.style.left = 0;
+    loadingDiv.style.width = '100vw';
+    loadingDiv.style.height = '100vh';
+    loadingDiv.style.background = 'rgba(255,255,255,0.7)';
+    loadingDiv.style.display = 'flex';
+    loadingDiv.style.alignItems = 'center';
+    loadingDiv.style.justifyContent = 'center';
+    loadingDiv.style.fontSize = '2em';
+    loadingDiv.style.zIndex = 1000;
+    loadingDiv.innerHTML = '<span>Loading...</span>';
+    loadingDiv.style.display = 'none';
+    document.body.appendChild(loadingDiv);
+
+    form.onsubmit = async function(e) {
+        e.preventDefault();
+        loadingDiv.style.display = 'flex';
+        const data = Object.fromEntries(new FormData(form).entries());
+        ['sigma','theta','pi','r','deg'].forEach(k => {
+            data[k] = data[k].split(',').map(Number);
+        });
+        data['v'] = Number(data['v']);
+        data['s'] = Number(data['s']);
+        data['n'] = Number(data['n']);
+        data['epsilon'] = Number(data['epsilon']);
+        data['split'] = data['split'] === 'true';
+        try {
+            const resp = await fetch('/run_simulation', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            if (resp.ok) {
+                // Wait a bit to ensure file is written
+                setTimeout(() => {
+                    graphFrame.src = 'mygraph.html?' + Date.now();
+                    loadingDiv.style.display = 'none';
+                }, 500);
+            } else {
+                loadingDiv.style.display = 'none';
+                alert('Simulation failed.');
+            }
+        } catch (err) {
+            loadingDiv.style.display = 'none';
+            alert('Simulation failed.');
+        }
+    };
+    </script>
+</body>
+</html>
