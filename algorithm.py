@@ -371,20 +371,8 @@ def calculate_equilibrium_algorithm(degrees, rewards, stakes):
 
     return all_final_splits_per_stake, all_final_allocations_per_stake
 
-def generate_network_graph(validator_num, service_num):
-    degrees = [1, 1.5, 2, 2.5, 3]
-    splits_num = [1, 3, 4, 5, 6]
-    num_this_split = 0
-    tmp = 0
-    for t in splits_num:
-        tmp += t
-        if tmp >= validator_num:
-            num_this_split += 1
-        else:
-            break
 
-    
-def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degree=5.0, degree_increment=0.5):
+def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degree=5.0, degree_increment=0.5, seed=None):
     """
     Generates a random network graph with specified validator and service numbers,
     assigning degrees and rewards based on defined rules.
@@ -395,6 +383,8 @@ def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degre
         min_degree (float): Minimum possible degree for a service.
         max_degree (float): Maximum possible degree for a service.
         degree_increment (float): The step size between degrees (e.g., 0.5 for 1, 1.5, 2...).
+        seed (int, optional): Seed for the random number generator to ensure reproducibility.
+                              If None, a new random seed will be used.
 
     Returns:
         tuple: A tuple containing:
@@ -405,6 +395,9 @@ def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degre
             - stakes (list): A list of random integer stakes for each validator,
                              length `validator_num`, values between 1 and 10.
     """
+    if seed is not None:
+        np.random.seed(seed)
+
     if not isinstance(validator_num, int) or validator_num <= 0:
         raise ValueError("validator_num must be a positive integer.")
     if not isinstance(service_num, int) or service_num <= 0:
@@ -427,9 +420,6 @@ def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degre
 
     service_degrees = []
     service_rewards = []
-
-    # Calculate remaining services to assign degrees to
-    remaining_services = service_num
 
     # Assign degrees ensuring service_num >= 2 * degree for each chosen degree
     for deg in sorted(possible_degrees, reverse=True): # Start with highest degrees to prioritize fulfilling condition
@@ -459,19 +449,19 @@ def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degre
 
     return service_degrees, assigned_rewards, stakes
 
-
 # --- Example Usage ---
 if __name__ == "__main__":
     print("--- Testing calculate_equilibrium_algorithm with Generated Data ---")
 
-    # Generate a random network graph
+    # Generate a random network graph with a fixed seed for reproducibility
     validator_count = 20
     service_count = 10
+    test_seed = 42 # Set a fixed seed here
     generated_degrees, generated_rewards, generated_stakes = generate_network_graph(
-        validator_count, service_count, min_degree=1.0, max_degree=3.0, degree_increment=0.5
+        validator_count, service_count, min_degree=1.0, max_degree=3.0, degree_increment=0.5, seed=test_seed
     )
 
-    print(f"Generated Network Parameters:")
+    print(f"Generated Network Parameters (Seed: {test_seed}):")
     print(f"  Validators: {validator_count}, Services: {service_count}")
     print(f"  Generated Degrees (for services): {generated_degrees}")
     print(f"  Generated Rewards (for services): {[round(r, 2) for r in generated_rewards]}") # Round for cleaner printing
