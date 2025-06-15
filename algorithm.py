@@ -376,9 +376,13 @@ def calculate_equilibrium_algorithm(degrees, rewards, stakes):
 if __name__ == "__main__":
     print("--- Testing calculate_equilibrium_algorithm ---")
 
-    degrees_example = [1, 1.5, 1.5]
-    rewards_example = [3, 1, 2]
-    stakes_example = [1, 1]  # Test with different total stake values
+    # degrees_example = [1.5, 2, 1.5, 2, 2, 1.5]
+    # rewards_example = [5.0, 15.0, 7.0, 15.0, 12.0, 10.0]
+    # stakes_example = [1.0, 0.5, 2.0] # Test with different total stake values
+    degrees_example = [1.5, 1.5, 1]
+    rewards_example = [2, 1, 3]
+    stakes_example = [1.0, 0.5, 2.0] # Test with different total stake values
+
 
     all_splits, all_allocations = calculate_equilibrium_algorithm(
         degrees_example, rewards_example, stakes_example
