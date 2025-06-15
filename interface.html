@@ -158,6 +158,9 @@
 
                     <h4>Validator Rewards:</h4>
                     ${formatArray(result.validator_rewards)}
+
+                    <h4>Algorithm Results:</h4>
+                    <pre>${result.algo_results}</pre>
                 `;
 
                 document.getElementById('resultsOutput').innerHTML = outputHtml;

@@ -2,6 +2,7 @@ from flask import Flask, request, send_from_directory, jsonify
 import numpy as np
 import os
 from simulations import simulate, visualize, reward_calc, get_validator_reward
+from algorithm import calculate_equilibrium_algorithm, get_results_str
 import flask_caching
 
 app = Flask(__name__)
@@ -74,6 +75,11 @@ def run_simulation():
         split_allocation=split_alloc,
         filename="mygraph.html",
     )
+
+    # run algorithm
+    algo_splits, algo_allocations = calculate_equilibrium_algorithm(deg, r, sigma)
+    algo_results = get_results_str(deg, r, sigma, algo_splits, algo_allocations)
+
     return jsonify(
         {
             "status": "ok",
@@ -82,6 +88,7 @@ def run_simulation():
             "split_restaking_deg": (w.sum(axis=1) / split_alloc.reshape(-1)).tolist(),
             "reward": reward.tolist(),
             "validator_rewards": validator_rewards.tolist(),
+            "algo_results": algo_results,
         }
     )
 
