@@ -44,8 +44,12 @@ def run_simulation():
     w, split_alloc = simulate_cache(
         v, s, sigma, theta, pi, r, deg, n=n, epsilon=epsilon, split=split
     )
+    print("Splits:")
     print(split_alloc)
+    print("Weights:")
     print(w)
+    print("Restaking degrees:")
+    print(w.sum(axis=1) / split_alloc.reshape(-1))
     # Visualize
     visualize(
         v,

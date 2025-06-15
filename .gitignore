@@ -2,6 +2,6 @@
 .vscode/
 __pycache__/
 .cache/
-
+.venv/
 lib/
 mygraph.html

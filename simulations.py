@@ -3,6 +3,8 @@ import numpy as np
 from pyvis.network import Network
 import time
 
+from scipy.optimize._constraints import LinearConstraint
+
 np.set_printoptions(suppress=True, precision=4)
 
 
@@ -326,9 +328,22 @@ def simulate(
             )
         )
         init_util = utility(x0)
+        unique_degs = np.unique(deg)
+        A = np.zeros((num_splits, x0.shape[0]))
+        lb = np.zeros(num_splits)
+        ub = np.zeros(num_splits)
+
+        # Give each split a constraint that it must sum to the stake of the split times its degree
+        for i in range(num_splits):
+            A[i, num_splits + i * s : num_splits + (i + 1) * s] = 1
+            A[i, i] = -unique_degs[i]
+
+        constraint = LinearConstraint(A, lb, ub)
+
         results = optimize.differential_evolution(
             utility,
             bounds,
+            constraints=[constraint],
             x0=x0,
         )
 
