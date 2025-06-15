@@ -35,7 +35,7 @@ def get_split_choice(Degrees):
     for unique_deg in unique_degrees:
         # Get indices where the original degree is no less than the current unique degree
         # np.where returns a tuple, we need the first element which is the array of indices
-        indices_for_mask = np.where(degrees_array >= unique_deg)[0].tolist()
+        indices_for_mask = np.where(degrees_array == unique_deg)[0].tolist()
         strategy_masks.append(indices_for_mask)
 
     return unique_degrees, strategy_masks
@@ -97,11 +97,11 @@ def calc_split_strategy(d, mask, rewards):
     # Create a mutable list of active indices from the input mask.
     # This list will be modified as indices get 'capped' at 1.
     active_mask = list(mask)
-    print(f"Initial active indices: {active_mask}")
+    # print(f"Initial active indices: {active_mask}")
 
     # Initialize the remaining 'd' to be distributed.
     remaining_d = float(d)
-    print(f"Initial remaining d: {remaining_d}")
+    # print(f"Initial remaining d: {remaining_d}")
 
     # --- Iterative Allocation Loop ---
     # The loop continues as long as there's 'd' left to distribute,
@@ -133,7 +133,7 @@ def calc_split_strategy(d, mask, rewards):
             # Handle potential division by zero if active_rewards_sum is 0, though
             # checked above.
             share = (rewards_array[idx] / active_rewards_sum) * remaining_d
-            print(f"Share for index {idx} (reward {rewards_array[idx]}): {share:.4f}")
+            # print(f"Share for index {idx} (reward {rewards_array[idx]}): {share:.4f}")
             current_iteration_temp_allocations[idx] = share
 
             # If this share is 1.0 or greater, it needs to be capped.
@@ -371,44 +371,136 @@ def calculate_equilibrium_algorithm(degrees, rewards, stakes):
 
     return all_final_splits_per_stake, all_final_allocations_per_stake
 
+def generate_network_graph(validator_num, service_num):
+    degrees = [1, 1.5, 2, 2.5, 3]
+    splits_num = [1, 3, 4, 5, 6]
+    num_this_split = 0
+    tmp = 0
+    for t in splits_num:
+        tmp += t
+        if tmp >= validator_num:
+            num_this_split += 1
+        else:
+            break
 
-# --- Example Usage (for testing the new function) ---
+    
+def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degree=5.0, degree_increment=0.5):
+    """
+    Generates a random network graph with specified validator and service numbers,
+    assigning degrees and rewards based on defined rules.
+
+    Args:
+        validator_num (int): Total number of validators in the network.
+        service_num (int): Total number of services in the network.
+        min_degree (float): Minimum possible degree for a service.
+        max_degree (float): Maximum possible degree for a service.
+        degree_increment (float): The step size between degrees (e.g., 0.5 for 1, 1.5, 2...).
+
+    Returns:
+        tuple: A tuple containing:
+            - assigned_degrees (list): A list of degrees assigned to each service,
+                                        length `service_num`.
+            - assigned_rewards (list): A list of rewards assigned to each service,
+                                        length `service_num`.
+            - stakes (list): A list of random integer stakes for each validator,
+                             length `validator_num`, values between 1 and 10.
+    """
+    if not isinstance(validator_num, int) or validator_num <= 0:
+        raise ValueError("validator_num must be a positive integer.")
+    if not isinstance(service_num, int) or service_num <= 0:
+        raise ValueError("service_num must be a positive integer.")
+    if service_num > validator_num:
+        raise ValueError("service_num cannot be greater than validator_num in this model.")
+    if not (isinstance(min_degree, (int, float)) and min_degree > 0):
+        raise ValueError("min_degree must be a positive number.")
+    if not (isinstance(max_degree, (int, float)) and max_degree >= min_degree):
+        raise ValueError("max_degree must be greater than or equal to min_degree.")
+    if not (isinstance(degree_increment, (int, float)) and degree_increment > 0):
+        raise ValueError("degree_increment must be a positive number.")
+
+
+    # Generate all possible degrees within the specified range
+    possible_degrees = np.arange(min_degree, max_degree + degree_increment, degree_increment).tolist()
+    if not possible_degrees: # Handle case where arange might yield empty list if max_degree < min_degree
+        possible_degrees = [min_degree]
+
+
+    service_degrees = []
+    service_rewards = []
+
+    # Calculate remaining services to assign degrees to
+    remaining_services = service_num
+
+    # Assign degrees ensuring service_num >= 2 * degree for each chosen degree
+    for deg in sorted(possible_degrees, reverse=True): # Start with highest degrees to prioritize fulfilling condition
+        required_for_this_deg = int(2 * deg)
+
+        # If we have enough services left and this degree's demand can fit
+        if service_num >= required_for_this_deg and len(service_degrees) + required_for_this_deg <= service_num:
+            service_degrees.extend([deg] * required_for_this_deg)
+        elif len(service_degrees) < service_num: # If we have some slots left, but not enough for full demand
+            # Assign remaining services to the current degree, as a fallback
+            remaining_slots = service_num - len(service_degrees)
+            service_degrees.extend([deg] * remaining_slots)
+            break # All services assigned
+    
+    # If after this, `service_degrees` is still too short (e.g., if service_num was too small for any 2*D)
+    # This can happen if service_num is very small (e.g., service_num = 1, but min_degree=1 needs 2 services).
+    # In such edge cases, it's impossible to meet the condition. We'll fill with min_degree.
+    while len(service_degrees) < service_num:
+        service_degrees.append(min_degree) # Fallback to min_degree if slots remain
+
+    # Now, fill rewards for services
+    assigned_rewards = np.random.uniform(1.0, 2.0, service_num).tolist()
+
+    # Generate random integer stakes for validators
+    # Each stake is a random integer from 1 to 10
+    stakes = np.random.randint(1, 11, size=validator_num).tolist() # 11 because randint is exclusive on high
+
+    return service_degrees, assigned_rewards, stakes
+
+
+# --- Example Usage ---
 if __name__ == "__main__":
-    print("--- Testing calculate_equilibrium_algorithm ---")
+    print("--- Testing calculate_equilibrium_algorithm with Generated Data ---")
 
-    # degrees_example = [1.5, 2, 1.5, 2, 2, 1.5]
-    # rewards_example = [5.0, 15.0, 7.0, 15.0, 12.0, 10.0]
-    # stakes_example = [1.0, 0.5, 2.0] # Test with different total stake values
-    degrees_example = [1.5, 1.5, 1]
-    rewards_example = [2, 1, 3]
-    stakes_example = [1.0, 0.5, 2.0] # Test with different total stake values
-
-
-    all_splits, all_allocations = calculate_equilibrium_algorithm(
-        degrees_example, rewards_example, stakes_example
+    # Generate a random network graph
+    validator_count = 20
+    service_count = 10
+    generated_degrees, generated_rewards, generated_stakes = generate_network_graph(
+        validator_count, service_count, min_degree=1.0, max_degree=3.0, degree_increment=0.5
     )
 
-    print(f"Original Degrees: {degrees_example}")
-    print(f"Original Rewards: {rewards_example}")
-    print(f"Stakes to test: {stakes_example}\n")
+    print(f"Generated Network Parameters:")
+    print(f"  Validators: {validator_count}, Services: {service_count}")
+    print(f"  Generated Degrees (for services): {generated_degrees}")
+    print(f"  Generated Rewards (for services): {[round(r, 2) for r in generated_rewards]}") # Round for cleaner printing
+    print(f"  Generated Stakes (for validators): {generated_stakes}\n")
 
-    for i, stake_val in enumerate(stakes_example):
+    # Now, use the generated data to test calculate_equilibrium_algorithm
+    all_splits, all_allocations = calculate_equilibrium_algorithm(
+        generated_degrees, generated_rewards, generated_stakes
+    )
+
+    print("--- Results from calculate_equilibrium_algorithm ---")
+    print(f"Original Degrees (used in algorithm): {generated_degrees}")
+    print(f"Original Rewards (used in algorithm): {[round(r, 2) for r in generated_rewards]}")
+    print(f"Stakes to test (used in algorithm): {generated_stakes}\n")
+
+    for i, stake_val in enumerate(generated_stakes):
         print(f"--- Results for Total Stake = {stake_val:.2f} ---")
-
+        
         current_final_splits = all_splits[i]
         current_final_allocations = all_allocations[i]
 
-        print(f"  Splits : {current_final_splits}")
+        print(f"  Splits (d values): {current_final_splits}")
         print(f"  Sum of Splits: {np.sum(current_final_splits):.4f}")
 
         print("  Allocations (within each split):")
         # Now, current_final_allocations is a 2D NumPy array.
         # Iterating over it directly yields its rows (which are the 1D allocation vectors).
         for j, alloc_vec in enumerate(current_final_allocations):
-            unique_degrees, _ = get_split_choice(
-                degrees_example
-            )  # Re-get unique degrees for printing
-            print(
-                f"    Split {j+1} (Degree Threshold: {unique_degrees[j]}): {alloc_vec.round(4).tolist()}"
-            )
+            # Re-get unique degrees for printing context, using the generated degrees
+            unique_degrees_for_context, _ = get_split_choice(generated_degrees)
+            print(f"    Split {j+1} (Degree Threshold: {unique_degrees_for_context[j]}): {alloc_vec.round(4).tolist()}")
         print("-" * 40)
