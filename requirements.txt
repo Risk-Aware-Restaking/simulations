@@ -1,0 +1,5 @@
+scipy
+numpy
+pyvis
+flask
+flask_caching
