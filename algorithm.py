@@ -376,9 +376,14 @@ def calculate_equilibrium_algorithm(degrees, rewards, stakes):
     return all_final_splits_per_stake, all_final_allocations_per_stake
 
 
-
-
-def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degree=5.0, degree_increment=0.5, seed=None):
+def generate_network_graph(
+    validator_num,
+    service_num,
+    min_degree=1.0,
+    max_degree=5.0,
+    degree_increment=0.5,
+    seed=None,
+):
     """
     Generates a random network graph with specified validator and service numbers,
     assigning degrees and rewards based on defined rules.
@@ -409,7 +414,9 @@ def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degre
     if not isinstance(service_num, int) or service_num <= 0:
         raise ValueError("service_num must be a positive integer.")
     if service_num > validator_num:
-        raise ValueError("service_num cannot be greater than validator_num in this model.")
+        raise ValueError(
+            "service_num cannot be greater than validator_num in this model."
+        )
     if not (isinstance(min_degree, (int, float)) and min_degree > 0):
         raise ValueError("min_degree must be a positive number.")
     if not (isinstance(max_degree, (int, float)) and max_degree >= min_degree):
@@ -417,10 +424,13 @@ def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degre
     if not (isinstance(degree_increment, (int, float)) and degree_increment > 0):
         raise ValueError("degree_increment must be a positive number.")
 
-
     # Generate all possible degrees within the specified range
-    possible_degrees = np.arange(min_degree, max_degree + degree_increment, degree_increment).tolist()
-    if not possible_degrees: # Handle case where arange might yield empty list if max_degree < min_degree
+    possible_degrees = np.arange(
+        min_degree, max_degree + degree_increment, degree_increment
+    ).tolist()
+    if (
+        not possible_degrees
+    ):  # Handle case where arange might yield empty list if max_degree < min_degree
         possible_degrees = [min_degree]
 
     assigned_service_degrees = []
@@ -429,9 +439,9 @@ def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degre
     # 1. Prioritize filling minimum requirements for each degree, starting from smallest degrees.
     #    This ensures that lower degrees (like 1.0) get their required minimum count if possible.
     #    Crucially, it only includes degrees if their full 2*D requirement can be met from remaining slots.
-    for deg in sorted(possible_degrees): # Iterate from lowest to highest degree
+    for deg in sorted(possible_degrees):  # Iterate from lowest to highest degree
         required_for_this_deg = int(2 * deg)
-        
+
         # Check if we can add 'required_for_this_deg' items AND not exceed service_num total
         if remaining_service_slots >= required_for_this_deg:
             assigned_service_degrees.extend([deg] * required_for_this_deg)
@@ -440,8 +450,8 @@ def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degre
             # If we cannot meet the 2*D requirement for this degree,
             # we stop trying to fulfill 2*D for this degree and any higher ones.
             # Any remaining slots will be filled with min_degree.
-            break 
-            
+            break
+
     # 2. Fill any remaining slots (up to `service_num`) with `min_degree`.
     #    These services are "placeholders" to meet `service_num` total and do not
     #    necessarily adhere to the `2*D` constraint for their own degree value.
@@ -449,7 +459,7 @@ def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degre
     #    meaningful set of degrees, ensuring a valid `service_degrees` list of correct length.
     while len(assigned_service_degrees) < service_num:
         assigned_service_degrees.append(min_degree)
-    
+
     # Shuffle the degrees to randomize their order, as the assignment was sorted.
     np.random.shuffle(assigned_service_degrees)
 
@@ -457,10 +467,42 @@ def generate_network_graph(validator_num, service_num, min_degree=1.0, max_degre
     assigned_rewards = np.random.uniform(1.0, 2.0, service_num).tolist()
 
     # Generate random integer stakes for validators
-    stakes = np.random.randint(1, 11, size=validator_num).tolist() # 11 because randint is exclusive on high
+    stakes = np.random.randint(
+        1, 11, size=validator_num
+    ).tolist()  # 11 because randint is exclusive on high
 
     return assigned_service_degrees, assigned_rewards, stakes
 
+
+def get_results_str(degrees, rewards, stakes, all_splits, all_allocations):
+    out = ""
+    out += "--- Results from calculate_equilibrium_algorithm ---\n"
+    out += f"Original Degrees (used in algorithm): {degrees}\n"
+    out += f"Original Rewards (used in algorithm): {[round(r, 2) for r in rewards]}\n"
+    out += f"Stakes to test (used in algorithm): {stakes}\n\n"
+
+    for i, stake_val in enumerate(stakes):
+        out += f"--- Results for Total Stake = {stake_val:.2f} ---\n"
+
+        current_final_splits = all_splits[i]
+        current_final_allocations = all_allocations[i]
+
+        out += f"  Splits (d values): {current_final_splits}\n"
+        out += f"  Sum of Splits: {np.sum(current_final_splits):.4f}\n"
+
+        out += "  Allocations (within each split):\n"
+        # Now, current_final_allocations is a 2D NumPy array.
+        # Iterating over it directly yields its rows (which are the 1D allocation vectors).
+        for j, alloc_vec in enumerate(current_final_allocations):
+            # Re-get unique degrees for printing context, using the generated degrees
+            unique_degrees_for_context, _ = get_split_choice(degrees)
+            out += f"    Split {j+1} (Degree Threshold: {unique_degrees_for_context[j]}): {alloc_vec.round(4).tolist()}\n"
+        out += "-" * 40 + "\n"
+
+    return out
+
+
+# --- Performance Testing for calculate_equilibrium_algorithm ---
 if __name__ == "__main__":
     print("--- Comparing Algorithm Performance and Results ---")
 
@@ -483,7 +525,7 @@ if __name__ == "__main__":
         for s_num in s_range:
             # Ensure service_num <= validator_num as per generate_network_graph's constraint
             actual_s_num = min(s_num, v_num)
-            if actual_s_num == 0: # Skip if service_num becomes 0 due to min(0, V)
+            if actual_s_num == 0:  # Skip if service_num becomes 0 due to min(0, V)
                 continue
 
             print(f"\n\n{'='*10} Test Case: Validators={v_num}, Services={actual_s_num} {'='*10}")
