@@ -229,7 +229,7 @@ def simulate(
     equilibrium_count = 0
     if split_init is None:
         all_split_allocs = np.array(
-            [[sigma[i // num_splits] / num_splits] * num_splits for i in range(v)]
+            [[sigma[i] / num_splits] * num_splits for i in range(v)]
         )
     else:
         all_split_allocs = np.copy(split_init)
@@ -328,6 +328,10 @@ def simulate(
                 w[curr_v * num_splits : curr_v * num_splits + num_splits, :].flatten(),
             )
         )
+        if (x0 > curr_stake).any() or (x0 < 0).any():
+            print(f"Iteration {i} split allocations: {all_split_allocs} validator {v} w array: {w}")
+            raise AssertionError(f"initial array is out of bounds: {x0}, curr stake: {curr_stake}")
+        
         init_util = utility(x0)
         if optimizer_type == "differential_evolution":
             results = optimize.differential_evolution(
@@ -384,7 +388,8 @@ def simulate(
             # print(results)
             # print("curr stake", curr_stake)
             # print(np.sum(results.x[:num_splits]))
-            if not np.isclose(np.sum(results.x[:num_splits]), curr_stake, atol=1e-1):
+            if np.sum(results.x[:num_splits]) > curr_stake:
+                print(f"Iteration {i}")
                 print(w)
                 print(results)
                 raise AssertionError(
